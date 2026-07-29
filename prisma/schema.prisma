@@ -1,0 +1,302 @@
+// Cap QA — data model
+// Org → Projects → (members via Membership). Users authenticate globally and belong to orgs.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GlobalRole {
+  ADMIN
+  USER
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum Provider {
+  GITLAB
+  JIRA
+  GITHUB
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  passwordHash String
+  role         GlobalRole   @default(USER)
+  createdAt    DateTime     @default(now())
+
+  memberships  Membership[]
+  ownedOrgs    Organization[] @relation("OrgOwner")
+  createdProjects Project[]  @relation("ProjectCreator")
+}
+
+model Organization {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  createdAt DateTime     @default(now())
+
+  ownerId   String
+  owner     User         @relation("OrgOwner", fields: [ownerId], references: [id])
+
+  members   Membership[]
+  projects  Project[]
+}
+
+model Membership {
+  id     String  @id @default(cuid())
+  role   OrgRole @default(MEMBER)
+
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, orgId])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  key         String
+  description String?
+  createdAt   DateTime @default(now())
+
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation("ProjectCreator", fields: [createdById], references: [id])
+
+  connectors  Connector[]
+  repos       Repo[]
+  aiSetting   AiSetting?
+  testTarget  TestTarget?
+  dbTarget    DbTarget?
+  testSuites  TestSuite[]
+  testRuns    TestRun[]
+
+  @@unique([orgId, key])
+}
+
+/** Named collection of re-runnable cases (suite-based reports). */
+model TestSuite {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  feature     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  cases       TestCase[]
+  runs        TestRun[]
+
+  @@index([projectId])
+}
+
+/** Stable case inside a suite (Compose “Save to suite”). */
+model TestCase {
+  id                  String   @id @default(cuid())
+  title               String
+  kind                String   @default("ui") // ui | api | database
+  feature             String?
+  askTitle            String?
+  askDescription      String?
+  priority            String?
+  type                String?
+  sortOrder           Int      @default(0)
+  acceptanceCriteria  Json? // [{ id, requirement }]
+  automation          Json? // { ui?, api?, db? } or single lane payload
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  suiteId             String
+  suite               TestSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+
+  runs                TestRun[]
+
+  @@index([suiteId])
+}
+
+/** Immutable execution report (case or suite). */
+model TestRun {
+  id           String   @id @default(cuid())
+  label        String
+  kind         String   @default("ui") // ui | api | database | suite
+  status       String   @default("pending") // passed | failed | skipped | pending
+  passed       Int      @default(0)
+  failed       Int      @default(0)
+  skipped      Int      @default(0)
+  durationMs   Int      @default(0)
+  askTitle     String?
+  feature      String?
+  runMode      String?
+  log          String?
+  runSteps     Json?
+  runSummary   Json?
+  acResults    Json? // [{ id, requirement, status, evidence? }]
+  specPath     String?
+  createdAt    DateTime @default(now())
+
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  suiteId      String?
+  suite        TestSuite? @relation(fields: [suiteId], references: [id], onDelete: SetNull)
+
+  caseId       String?
+  case         TestCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  parentRunId  String?
+  parentRun    TestRun?  @relation("SuiteChildRuns", fields: [parentRunId], references: [id], onDelete: Cascade)
+  childRuns    TestRun[] @relation("SuiteChildRuns")
+
+  artifacts    RunArtifact[]
+
+  @@index([projectId, createdAt])
+  @@index([suiteId])
+  @@index([parentRunId])
+}
+
+/** Video / screenshot / trace / sql log files for a run. */
+model RunArtifact {
+  id           String   @id @default(cuid())
+  type         String // video | screenshot | trace | log
+  fileName     String
+  mimeType     String?
+  relativePath String
+  sizeBytes    Int?
+  createdAt    DateTime @default(now())
+
+  runId        String
+  run          TestRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+model AiSetting {
+  id           String   @id @default(cuid())
+  provider     String   @default("demo") // demo | openai | anthropic
+  model        String?
+  apiKeyCipher String?  // encrypted API key
+  updatedAt    DateTime @updatedAt
+
+  projectId    String   @unique
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/** App-under-test credentials for Playwright / API execution (per project). */
+model TestTarget {
+  id               String   @id @default(cuid())
+  appUrl           String?
+  email            String?
+  passwordCipher   String?  // encrypted login password
+  updatedAt        DateTime @updatedAt
+
+  projectId        String   @unique
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/** CapBO (or target app) Postgres credentials for Database · SQL verification (per project). */
+model DbTarget {
+  id             String   @id @default(cuid())
+  host           String?
+  port           Int      @default(5432)
+  database       String?
+  username       String?
+  passwordCipher String?  // encrypted DB password
+  ssl            Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  projectId      String   @unique
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Connector {
+  id          String   @id @default(cuid())
+  provider    Provider
+  baseUrl     String
+  accountName String?
+  email       String?  // Jira account email
+  tokenCipher String   // encrypted token (AES-256-GCM: ivHex:tagHex:cipherHex)
+  createdAt   DateTime @default(now())
+
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  repos       Repo[]
+
+  @@unique([projectId, provider])
+}
+
+model Repo {
+  id          String   @id @default(cuid())
+  provider    Provider
+  name        String   // path_with_namespace (GitLab) or owner/repo (GitHub)
+  key         String?  // short user-defined alias for the repo within the project
+  branch      String
+  webUrl      String?
+  language    String?
+  summary     String?
+  files       Json?    // cached file paths for the current branch
+  active      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connectorId String
+  connector   Connector  @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  index       RepoIndex?
+  chunks      CodeChunk[]
+
+  @@unique([projectId, name])
+}
+
+// RAG index status for a connected repo (one row per repo).
+model RepoIndex {
+  id         String   @id @default(cuid())
+  status     String   @default("pending") // pending | indexing | ready | failed
+  commitSha  String?
+  fileCount  Int      @default(0)
+  chunkCount Int      @default(0)
+  error      String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  repoId     String   @unique
+  repo       Repo     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+}
+
+// Code chunks for RAG retrieval. embedding = OpenAI float[] JSON; search = tsvector for keywords.
+model CodeChunk {
+  id        String @id @default(cuid())
+  path      String
+  startLine Int
+  endLine   Int
+  language  String?
+  content   String
+  embedding Json?  // number[] when indexed with OpenAI embeddings
+  // Full-text search vector (written via raw SQL on insert).
+  search    Unsupported("tsvector")?
+
+  repoId    String
+  repo      Repo   @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  projectId String
+
+  @@index([projectId])
+  @@index([repoId])
+}

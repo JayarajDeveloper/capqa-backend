@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build / runtime
+dist/
+build/
+.tmp/
+.temp/
+.cache/
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# App storage / indexes (local RAG, uploads)
+storage/
+
+# Playwright E2E
+generated-e2e/*.spec.ts
+generated-e2e/.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Coverage / test
+coverage/
+.nyc_output/
+*.lcov
+
+# Editor / IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Misc
+*.tsbuildinfo
+.eslintcache

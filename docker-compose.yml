@@ -1,0 +1,21 @@
+# Local Postgres for development:  docker compose up -d
+# Matches the default DATABASE_URL in .env.example.
+# Optional: use pgvector/pgvector:pg16 if you want native vector indexes later.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cap-qa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nocta
+      POSTGRES_PASSWORD: nocta
+      POSTGRES_DB: nocta
+    ports:
+      # Host port 5433 to avoid clashing with a Postgres already on 5432.
+      # Override with DB_PORT if you like: DB_PORT=5544 docker compose up -d
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - nocta_pgdata:/var/lib/postgresql/data
+
+volumes:
+  nocta_pgdata:

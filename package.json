@@ -1,0 +1,37 @@
+{
+  "name": "cap-qa-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test src/lib/rag/extractTestData.test.js src/lib/rag/modulePipeline.test.js",
+    "test:compose-smoke": "node scripts/compose-smoke.mjs",
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "seed": "node prisma/seed.js",
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "test:e2e": "playwright test --config generated-e2e/playwright.config.mjs",
+    "test:e2e:headed": "playwright test --config generated-e2e/playwright.config.mjs --headed",
+    "test:e2e:auth": "E2E_AUTH_SETUP=1 playwright test auth.setup.spec.ts --config generated-e2e/playwright.config.mjs --headed"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.22.0",
+    "playwright": "^1.51.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "prisma": "^6.19.3"
+  }
+}

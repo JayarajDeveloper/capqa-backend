@@ -42,6 +42,10 @@ npm run dev                     # http://localhost:4000
 - Passwords are bcrypt-hashed; tokens are JWT (`JWT_EXPIRES_IN`, default 7d).
 - `PORT` defaults to 4000; the frontend proxies `/api` → this port in dev.
 - Switch to a managed Postgres for production by changing `DATABASE_URL` only.
+- Compose live hydrate prefers local CapBO trees when set:
+  - `CAPQA_LOCAL_UI_ROOT` — frontend repo root (e.g. `…/capbo-frontend`)
+  - `CAPQA_LOCAL_API_ROOT` — backend repo root (e.g. `…/capbo-backend`)
+  If unset, Compose falls back to GitLab live fetch from connected repos.
 
 ## Next steps (planned)
 - Move GitLab/Jira connector tokens here (encrypted at rest) so they leave the browser.

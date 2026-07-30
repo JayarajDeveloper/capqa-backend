@@ -8,7 +8,14 @@ import { retrieveChunks, formatChunksForPrompt, layerOf, matchesLayers } from '.
 import { filterChunksToAsk, suggestIndexedFeatures, parseIntent, pickFeatureFromCatalog, loadChunksForFeature, prioritizeFeatureChunks } from '../lib/rag/ground.js';
 import { resolveComposeLanes } from '../lib/rag/resolveComposeLanes.js';
 import { pathInFeatureFolder, primaryFeatureFolder, filterChunksToFeatureFolder, resolvedFeatureFolder } from '../lib/rag/codeSignals.js';
-import { hydrateChunksFromGitLab, REQUIRE_LIVE_FOR_UI, filterLiveGitlabChunks, liveUiSourcesReady, supplementLiveUiFromGitLab } from '../lib/rag/live.js';
+import {
+  hydrateChunksForCompose,
+  REQUIRE_LIVE_FOR_UI,
+  filterLiveGitlabChunks,
+  liveUiSourcesReady,
+  supplementLiveUiForCompose,
+  isLocalSourceConfigured,
+} from '../lib/rag/live.js';
 import { buildAutomationBundle, ensureAutomationHasFillSteps } from '../lib/automation/codegen.js';
 import { writePlaywrightSpec, writeApiSpec, saveAndRunPlaywrightSpec, saveAndRunApiSpec } from '../lib/automation/specWriter.js';
 import { loadDbTarget, testDbConnection, runDbAutomation } from '../lib/automation/dbRunner.js';
@@ -551,14 +558,17 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
     label: 'Matched your ask to code',
     detail: `${grounding.matchedFeature} · confidence ${(grounding.confidence * 100).toFixed(0)}%`,
   };
+  const useLocal = isLocalSourceConfigured();
   agentSteps[3] = {
     id: 'draft',
     status: 'active',
-    label: 'Refreshing files from GitLab',
-    detail: `Live fetch for ${grounding.matchedFeature}…`,
+    label: useLocal ? 'Reading local CapBO folders' : 'Refreshing files from GitLab',
+    detail: useLocal
+      ? `Local disk for ${grounding.matchedFeature}…`
+      : `Live fetch for ${grounding.matchedFeature}…`,
   };
 
-  // Strict: no live GitLab connection / fetch → no test plan at all (UI or API)
+  // Strict: no live source (local disk or GitLab) → no test plan at all (UI or API)
   const wantsUiLayer = !layers.length || layers.includes('ui');
   const requireLive = REQUIRE_LIVE_FOR_UI;
   let liveMeta = { ok: false, fetched: 0, discovered: 0, reason: null };
@@ -568,14 +578,17 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
   const seedPaths = [...(pick.paths || []), ...chunks.map((c) => c.path)];
 
   async function runLiveHydrate() {
+    const hydratePromise = hydrateChunksForCompose({
+      projectId: req.project.id,
+      chunks,
+      featureName: grounding.matchedFeature,
+      query,
+      layers,
+    });
+    // Local disk is fast — no GitLab-style timeout race needed
+    if (isLocalSourceConfigured()) return hydratePromise;
     return Promise.race([
-      hydrateChunksFromGitLab({
-        projectId: req.project.id,
-        chunks,
-        featureName: grounding.matchedFeature,
-        query,
-        layers,
-      }),
+      hydratePromise,
       new Promise((resolve) => setTimeout(() => resolve({
         chunks,
         liveChunks: [],
@@ -586,8 +599,14 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
 
   try {
     let live = await runLiveHydrate();
-    const retryable = new Set(['gitlab_unreachable', 'gitlab_unreachable_timeout', 'gitlab_fetch_failed', 'nothing_fetched']);
-    if (requireLive && retryable.has(live.live?.reason)) {
+    const retryable = new Set([
+      'gitlab_unreachable',
+      'gitlab_unreachable_timeout',
+      'gitlab_fetch_failed',
+      'nothing_fetched',
+      'local_root_missing',
+    ]);
+    if (requireLive && retryable.has(live.live?.reason) && !isLocalSourceConfigured()) {
       console.log(`[compose] live GitLab retry (${live.live?.reason})…`);
       await new Promise((r) => setTimeout(r, 1000));
       live = await runLiveHydrate();
@@ -596,44 +615,54 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
     liveChunksOnly = live.liveChunks || filterLiveGitlabChunks(live.chunks);
     liveMeta = live.live || liveMeta;
     liveChunksOnly = filterChunksToFeatureFolder(liveChunksOnly, grounding.matchedFeature, seedPaths);
-    console.log(`[compose] live GitLab hydrate ${Date.now() - tHydrate}ms · fetched=${liveMeta.fetched || 0} · ok=${!!liveMeta.ok} · folder=${resolvedFeatureFolder(grounding.matchedFeature, seedPaths)}`);
+    const src = liveMeta.source === 'local' || isLocalSourceConfigured() ? 'local' : 'GitLab';
+    console.log(`[compose] live ${src} hydrate ${Date.now() - tHydrate}ms · fetched=${liveMeta.fetched || 0} · ok=${!!liveMeta.ok} · folder=${resolvedFeatureFolder(grounding.matchedFeature, seedPaths)}`);
     grounding = {
       ...grounding,
       matchedPaths: [...new Set((liveChunksOnly.length ? liveChunksOnly : chunks).map((c) => c.path))].slice(0, 12),
       liveGitLab: liveMeta,
+      liveSource: src,
     };
   } catch (e) {
-    console.warn('[compose] live GitLab hydrate failed:', e.message, `(${Date.now() - tHydrate}ms)`);
+    console.warn('[compose] live hydrate failed:', e.message, `(${Date.now() - tHydrate}ms)`);
     liveMeta = { ok: false, reason: e.message, fetched: 0, discovered: 0 };
     liveChunksOnly = [];
   }
 
   const refuseNoLivePlan = (reason, detail) => {
+    const local = isLocalSourceConfigured();
     agentSteps[3] = {
       id: 'draft',
       status: 'error',
-      label: 'No live GitLab — test plan not created',
+      label: local ? 'No local CapBO code — test plan not created' : 'No live GitLab — test plan not created',
       detail: detail || reason,
     };
     agentSteps[4] = {
       id: 'ready',
       status: 'error',
       label: 'Blocked',
-      detail: 'Connect GitLab and ensure live fetch works, then compose again',
+      detail: local
+        ? 'Check CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT paths, then compose again'
+        : 'Connect GitLab and ensure live fetch works, then compose again',
     };
     return res.status(503).json({
-      error: 'No live GitLab code available — test plan was not created.',
+      error: local
+        ? 'No local CapBO code available — test plan was not created.'
+        : 'No live GitLab code available — test plan was not created.',
       code: 'LIVE_GITLAB_REQUIRED',
       reason,
       liveGitLab: liveMeta,
-      hint: 'Add an active GitLab repo connector, set GITLAB_LIVE_ENABLED=true, and retry when GitLab is reachable.',
+      hint: local
+        ? 'Set CAPQA_LOCAL_UI_ROOT and CAPQA_LOCAL_API_ROOT to your CapBO frontend/backend repo roots.'
+        : 'Add an active GitLab repo connector, or set CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT for local disk.',
       detail: detail || ({
-        live_disabled: 'GITLAB_LIVE_ENABLED is false',
         no_active_gitlab_repo: 'No active GitLab repo connected to this project',
         gitlab_unreachable: 'GitLab is unreachable (VPN / network)',
         gitlab_unreachable_timeout: 'GitLab live fetch timed out',
         gitlab_fetch_failed: 'GitLab file fetch failed',
         nothing_fetched: 'Live fetch returned no files',
+        local_not_configured: 'CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT not set',
+        local_root_missing: 'A configured local CapBO root path does not exist',
         live_ui_incomplete: 'Live UI files missing testIds or form rules',
       })[reason] || reason,
       cases: [],
@@ -644,6 +673,7 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
       grounded: true,
       fromIndex: true,
       fromLiveGitLab: false,
+      fromLocalDisk: local,
       inventOutsideIndex: false,
     });
   };
@@ -652,12 +682,13 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
     if (!liveMeta.ok || !liveChunksOnly.length) {
       const reason = liveMeta.reason || 'no_live_files';
       const detail = ({
-        live_disabled: 'GITLAB_LIVE_ENABLED is false',
         no_active_gitlab_repo: 'No active GitLab repo connected to this project',
         gitlab_unreachable: 'GitLab is unreachable',
         gitlab_unreachable_timeout: 'GitLab live fetch timed out',
         gitlab_fetch_failed: 'GitLab file fetch failed',
         nothing_fetched: 'Live fetch returned no files',
+        local_not_configured: 'CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT not set',
+        local_root_missing: liveMeta.detail || 'Local CapBO root missing',
       })[reason] || reason;
       return refuseNoLivePlan(reason, detail);
     }
@@ -667,7 +698,7 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
       let ready = liveUiSourcesReady(liveChunksOnly);
       if (!ready.ok && !ready.hasTestId) {
         console.log('[compose] live UI missing testIds — mandatory UI supplement…');
-        const sup = await supplementLiveUiFromGitLab({
+        const sup = await supplementLiveUiForCompose({
           projectId: req.project.id,
           featureName: grounding.matchedFeature,
           liveChunks: liveChunksOnly,
@@ -683,7 +714,7 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
           ready = liveUiSourcesReady(liveChunksOnly);
         }
       }
-      if (!ready.ok) {
+      if (!ready.ok && !isLocalSourceConfigured()) {
         console.log('[compose] live UI still incomplete — full live hydrate retry…');
         await new Promise((r) => setTimeout(r, 1000));
         const retryLive = await runLiveHydrate();
@@ -724,13 +755,15 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
   agentSteps[3] = {
     id: 'draft',
     status: 'active',
-    label: 'Drafting from live GitLab files',
+    label: isLocalSourceConfigured()
+      ? 'Drafting from local CapBO files'
+      : 'Drafting from live GitLab files',
     detail: `Live · ${liveMeta.fetched} refreshed` +
       (liveMeta.discovered ? ` · ${liveMeta.discovered} discovered` : '') +
       (liveMeta.branch ? ` · ${liveMeta.branch}` : ''),
   };
 
-  // No index expand — live GitLab only
+  // No index expand — live source only (local or GitLab)
   chunks = filterLiveGitlabChunks(chunks);
 
   const uiChunks = prioritizeFeatureChunks(
@@ -746,7 +779,12 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
   const apiContext = apiChunks.length ? formatChunksForPrompt(apiChunks) : '';
 
   if (requireLive && wantsUiLayer && !uiContext.trim()) {
-    return refuseNoLivePlan('LIVE_GITLAB_EMPTY_UI', 'Live GitLab returned no UI file bodies for this feature');
+    return refuseNoLivePlan(
+      'LIVE_GITLAB_EMPTY_UI',
+      isLocalSourceConfigured()
+        ? 'Local CapBO trees returned no UI file bodies for this feature'
+        : 'Live GitLab returned no UI file bodies for this feature',
+    );
   }
 
   try {
@@ -818,6 +856,7 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
       throw new Error('Compose produced no Database steps — ensure ask has a code/name and Entity is matched');
     }
 
+    const draftedFrom = isLocalSourceConfigured() ? 'local CapBO' : 'live GitLab';
     agentSteps[3] = {
       id: 'draft',
       status: 'done',
@@ -826,8 +865,8 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
         apiSpecFile && 'API',
         hasDbSteps && 'Database',
       ].filter(Boolean).join(' + ')
-        ? `Drafted ${[specFile && 'UI', apiSpecFile && 'API', hasDbSteps && 'Database'].filter(Boolean).join(' + ')} from live GitLab`
-        : 'Drafted from live GitLab',
+        ? `Drafted ${[specFile && 'UI', apiSpecFile && 'API', hasDbSteps && 'Database'].filter(Boolean).join(' + ')} from ${draftedFrom}`
+        : `Drafted from ${draftedFrom}`,
       detail: uiPlan
         ? `Live plan · ${uiPlan.steps?.length || 0} steps · ${[specFile, apiSpecFile, hasDbSteps && 'sql'].filter(Boolean).join(' · ') || 'no spec'}`
         : `${cases.length} case${cases.length === 1 ? '' : 's'}`,
@@ -888,9 +927,13 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
         composeAdvice: composeAdvice || [],
         composeSuggestions: composeSuggestions || [],
         note: capabilitiesWarning
-          ? `${capabilitiesWarning} ${liveMeta.ok ? 'Plan built from live GitLab.' : (grounding.note || 'Plan built from indexed code.')}`
+          ? `${capabilitiesWarning} ${liveMeta.ok
+            ? (liveMeta.source === 'local' || isLocalSourceConfigured() ? 'Plan built from local CapBO.' : 'Plan built from live GitLab.')
+            : (grounding.note || 'Plan built from indexed code.')}`
           : (liveMeta.ok
-            ? 'Plan built from live GitLab file contents (matched via index). Application words come from sources, not invented.'
+            ? (liveMeta.source === 'local' || isLocalSourceConfigured()
+              ? 'Plan built from local CapBO file contents (matched via index). Application words come from sources, not invented.'
+              : 'Plan built from live GitLab file contents (matched via index). Application words come from sources, not invented.')
             : (grounding.note || 'Plan built only from indexed code. Application words come from sources, not invented.')),
       },
       liveGitLab: liveMeta,
@@ -905,7 +948,8 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
       })),
       grounded: true,
       fromIndex: true,
-      fromLiveGitLab: !!liveMeta.ok,
+      fromLiveGitLab: !!liveMeta.ok && liveMeta.source !== 'local',
+      fromLocalDisk: liveMeta.source === 'local' || isLocalSourceConfigured(),
       inventOutsideIndex: false,
       composeAdvice: composeAdvice || [],
       composeSuggestions: composeSuggestions || [],

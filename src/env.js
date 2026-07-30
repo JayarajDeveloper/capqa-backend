@@ -36,4 +36,10 @@ export const env = {
   TARGET_API_URL: (process.env.TARGET_API_URL || process.env.TARGET_APP_URL || '').replace(/\/+$/, ''),
   /** CapBO Postgres for Database · SQL (optional; Settings per project preferred). */
   TARGET_DATABASE_URL: process.env.TARGET_DATABASE_URL || '',
+  /**
+   * Local CapBO trees for Compose live hydrate (preferred over GitLab when set).
+   * Point at repo roots so relative paths like src/app/pages/... still match the index.
+   */
+  CAPQA_LOCAL_UI_ROOT: (process.env.CAPQA_LOCAL_UI_ROOT || '').replace(/\/+$/, ''),
+  CAPQA_LOCAL_API_ROOT: (process.env.CAPQA_LOCAL_API_ROOT || '').replace(/\/+$/, ''),
 };

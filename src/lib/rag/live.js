@@ -8,6 +8,11 @@ import { languageOf } from './chunk.js';
 import { layerOf } from './retrieve.js';
 import { featureFromPath } from './ground.js';
 import { featureFolderFromPath, hasFeatureDetailChunk, isDetailChunkPath, isFeatureFormHtmlPath, primaryFeatureFolder, featureSlugFromName, resolvedFeatureFolder } from './codeSignals.js';
+import {
+  isLocalSourceConfigured,
+  hydrateChunksFromLocal,
+  supplementLiveUiFromLocal,
+} from './localSource.js';
 
 function featureSlugFromNameSafe(name) {
   return featureSlugFromName(name) || '';
@@ -24,12 +29,32 @@ const MAX_AUTO_BE = 10;
 const HYDRATE_BUDGET_MS = Number(process.env.GITLAB_HYDRATE_BUDGET_MS || 45000);
 /** Per-file timeout for live compose (indexing still uses GITLAB_HTTP_TIMEOUT_MS). */
 const LIVE_FILE_TIMEOUT_MS = Number(process.env.GITLAB_LIVE_FILE_TIMEOUT_MS || 5000);
-/** Skip live GitLab entirely when set false — NOT allowed for UI compose (testIds/rules). */
-const LIVE_ENABLED = process.env.GITLAB_LIVE_ENABLED !== 'false';
-/** UI compose must use live GitLab bodies only (no truncated index junk). Default: on. */
+/** UI compose must use live bodies (local disk or GitLab) — no truncated index junk. Default: on. */
 export const REQUIRE_LIVE_FOR_UI = process.env.COMPOSE_REQUIRE_LIVE_GITLAB !== 'false';
 const PING_TIMEOUT_MS = Number(process.env.GITLAB_PING_TIMEOUT_MS || 8000);
 const PING_RETRIES = Number(process.env.GITLAB_PING_RETRIES || 3);
+
+/**
+ * Compose live hydrate: prefer local CapBO trees when CAPQA_LOCAL_* roots are set,
+ * otherwise GitLab HTTP (existing behaviour).
+ */
+export async function hydrateChunksForCompose(args) {
+  if (isLocalSourceConfigured()) {
+    console.log('[live] using local CapBO roots (CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT)');
+    return hydrateChunksFromLocal(args);
+  }
+  return hydrateChunksFromGitLab(args);
+}
+
+/** Mandatory UI supplement from the active live source. */
+export async function supplementLiveUiForCompose(args) {
+  if (isLocalSourceConfigured()) {
+    return supplementLiveUiFromLocal(args);
+  }
+  return supplementLiveUiFromGitLab(args);
+}
+
+export { isLocalSourceConfigured, hydrateChunksFromLocal, supplementLiveUiFromLocal };
 
 export function maxCharsForPath(filePath) {
   const p = String(filePath || '');
@@ -124,14 +149,6 @@ async function readLiveFile(repo, path) {
  * If GitLab is unreachable, probes once then skips live (no 20s×N waits).
  */
 export async function hydrateChunksFromGitLab({ projectId, chunks = [], featureName = '', query = '', layers = [] }) {
-  if (!LIVE_ENABLED) {
-    return {
-      chunks,
-      liveChunks: [],
-      live: { ok: false, reason: 'live_disabled', fetched: 0, discovered: 0, branch: null },
-    };
-  }
-
   const repos = await loadActiveGitlabRepos(projectId);
   if (!repos.length) {
     return {
@@ -445,12 +462,12 @@ export async function hydrateChunksFromGitLab({ projectId, chunks = [], featureN
   };
 }
 
-/** True when chunk body came from live GitLab (seed refresh or auto-discover). */
+/** True when chunk body came from live source (GitLab HTTP or local disk). */
 export function isLiveGitlabChunk(chunk) {
   return /^live-/i.test(String(chunk?.method || ''));
 }
 
-/** UI compose input: only live-fetched FE/BE bodies. */
+/** UI compose input: only live-fetched FE/BE bodies (local or GitLab). */
 export function filterLiveGitlabChunks(chunks = []) {
   return (chunks || []).filter(isLiveGitlabChunk);
 }

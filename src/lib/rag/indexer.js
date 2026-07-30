@@ -86,7 +86,7 @@ export async function recoverStaleIndexes({ onStartup = false } = {}) {
 /**
  * Full re-index of one repo. Safe to call repeatedly.
  */
-export async function indexRepo(repoId, { apiKey = null, provider = 'gemini', baseUrl = null } = {}) {
+export async function indexRepo(repoId, { apiKey = null, provider = 'anthropic', baseUrl = null } = {}) {
   if (activeJobs.has(repoId)) {
     return activeJobs.get(repoId);
   }

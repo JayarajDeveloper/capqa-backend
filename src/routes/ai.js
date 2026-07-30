@@ -35,7 +35,7 @@ aiRouter.param('projectId', async (req, res, next, projectId) => {
   next();
 });
 
-const PROVIDER = 'gemini';
+const PROVIDER = 'anthropic';
 
 async function attachSavedReport(projectId, result, options = {}, extras = {}) {
   if (options.saveReport === false || result?.skipped) {
@@ -71,11 +71,11 @@ async function attachSavedReport(projectId, result, options = {}, extras = {}) {
 }
 
 function envKeyFor() {
-  return env.GEMINI_API_KEY || '';
+  return env.ANTHROPIC_API_KEY || '';
 }
 
 function envModelFor() {
-  return env.GEMINI_MODEL || 'gemini-2.5-flash';
+  return env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
 }
 
 const publicAi = (s) => {
@@ -88,12 +88,12 @@ const publicAi = (s) => {
     hasKey: hasStored || hasEnv,
     keySource: hasStored ? 'stored' : hasEnv ? 'env' : null,
     envAvailable: {
-      gemini: !!env.GEMINI_API_KEY,
+      anthropic: !!env.ANTHROPIC_API_KEY,
     },
   };
 };
 
-/** Resolve Gemini key/model: project Settings first, then .env fallback. */
+/** Resolve Anthropic key/model: project Settings first, then .env fallback. */
 async function loadAiCreds(projectId) {
   const s = await prisma.aiSetting.findUnique({ where: { projectId } });
   let apiKey = s?.apiKeyCipher ? decrypt(s.apiKeyCipher) : null;
@@ -109,7 +109,7 @@ aiRouter.get('/projects/:projectId/ai-settings', async (req, res) => {
   res.json(publicAi(s));
 });
 
-// PUT Gemini model/key. Empty apiKey keeps existing / falls back to .env.
+// PUT Anthropic model/key. Empty apiKey keeps existing / falls back to .env.
 aiRouter.put('/projects/:projectId/ai-settings', async (req, res) => {
   const { model = '', apiKey } = req.body || {};
   const provider = PROVIDER;
@@ -119,7 +119,7 @@ aiRouter.put('/projects/:projectId/ai-settings', async (req, res) => {
   if (typeof apiKey === 'string' && apiKey.trim()) apiKeyCipher = encrypt(apiKey.trim());
 
   if (!apiKeyCipher && !envKeyFor()) {
-    return res.status(400).json({ error: 'Gemini API key required — set in Settings or GEMINI_API_KEY in .env' });
+    return res.status(400).json({ error: 'Anthropic API key required — set in Settings or ANTHROPIC_API_KEY in .env' });
   }
 
   const data = { provider, model: model || envModelFor() || null, apiKeyCipher };
@@ -134,7 +134,7 @@ aiRouter.put('/projects/:projectId/ai-settings', async (req, res) => {
 // Test connectivity with the stored / env key.
 aiRouter.post('/projects/:projectId/ai-settings/test', async (req, res) => {
   const { provider, apiKey, model } = await loadAiCreds(req.project.id);
-  if (!apiKey) return res.status(400).json({ error: 'No Gemini API key stored or in .env' });
+  if (!apiKey) return res.status(400).json({ error: 'No Anthropic API key stored or in .env' });
   try {
     await testConnection({ provider, apiKey, model });
     res.json({ ok: true, provider });
@@ -353,7 +353,7 @@ aiRouter.post('/projects/:projectId/repos/:repoId/index', async (req, res) => {
   });
   res.status(202).json({ ok: true, repoId: repo.id, status: 'indexing' });
 
-  indexRepo(repo.id, { provider, apiKey, baseUrl: env.GEMINI_BASE_URL }).catch((e) => console.error('[rag] index failed', repo.id, e.message));
+  indexRepo(repo.id, { provider, apiKey, baseUrl: env.ANTHROPIC_BASE_URL }).catch((e) => console.error('[rag] index failed', repo.id, e.message));
 });
 
 // Index all active repos in the project.
@@ -371,7 +371,7 @@ aiRouter.post('/projects/:projectId/rag/index', async (req, res) => {
   }
   res.status(202).json({ ok: true, status: 'indexing', repoIds: active.map((r) => r.id) });
 
-  indexActiveRepos(req.project.id, { provider, apiKey, baseUrl: env.GEMINI_BASE_URL })
+  indexActiveRepos(req.project.id, { provider, apiKey, baseUrl: env.ANTHROPIC_BASE_URL })
     .then((r) => console.log('[rag] project index done', req.project.id, r))
     .catch((e) => console.error('[rag] project index failed', e.message));
 });
@@ -387,7 +387,7 @@ aiRouter.post('/projects/:projectId/rag/query', async (req, res) => {
     topK: Number(topK) || 10,
     provider,
     apiKey,
-    baseUrl: env.GEMINI_BASE_URL,
+    baseUrl: env.ANTHROPIC_BASE_URL,
   });
   res.json({ chunks });
 });
@@ -428,7 +428,7 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
   if (!isLlmReady(provider, apiKey)) {
     agentSteps[1] = { id: 'retrieve', status: 'skipped', label: 'Search code index', detail: 'Waiting for AI key' };
     agentSteps[2] = { id: 'ground', status: 'skipped', label: 'Match to real code', detail: 'Waiting for AI key' };
-    agentSteps[3] = { id: 'draft', status: 'failed', label: 'AI key required', detail: 'Configure Gemini or Anthropic in Settings' };
+    agentSteps[3] = { id: 'draft', status: 'failed', label: 'AI key required', detail: 'Configure Anthropic in Settings' };
     agentSteps[4] = { id: 'ready', status: 'skipped', label: 'Not ready', detail: 'Add an LLM API key to generate test cases' };
     return res.status(422).json({
       error: LLM_KEY_REQUIRED_MSG,
@@ -457,7 +457,7 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
       topK: options?.topK || 12,
       provider,
       apiKey,
-      baseUrl: env.GEMINI_BASE_URL,
+      baseUrl: env.ANTHROPIC_BASE_URL,
       layers,
     });
   } catch (e) {

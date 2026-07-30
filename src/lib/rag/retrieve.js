@@ -115,7 +115,7 @@ export async function retrieveChunks({
   query,
   topK = 10,
   apiKey = null,
-  provider = 'gemini',
+  provider = 'anthropic',
   repoIds = null,
   baseUrl = null,
   layers = null,
@@ -269,7 +269,7 @@ export async function retrieveChunks({
     }
   }
 
-  // 3) Embeddings when available (Gemini / OpenAI)
+  // 3) Embeddings when available (skipped for Anthropic — lexical only)
   let queryEmb = null;
   try {
     queryEmb = await embedOne(query, { apiKey, provider, baseUrl });

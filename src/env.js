@@ -27,9 +27,9 @@ export const env = {
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin123',
   ADMIN_NAME: process.env.ADMIN_NAME || 'Admin',
   ADMIN_ORG: process.env.ADMIN_ORG || 'Cap',
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.API_KEY || '',
-  GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-  GEMINI_BASE_URL: (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models').replace(/\/+$/, ''),
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || process.env.API_KEY || '',
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+  ANTHROPIC_BASE_URL: (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, ''),
   /** App under test for Playwright UI runs (e.g. CapBO frontend URL). */
   TARGET_APP_URL: (process.env.TARGET_APP_URL || '').replace(/\/+$/, ''),
   /** API base for HTTP automation (defaults to TARGET_APP_URL if unset). */

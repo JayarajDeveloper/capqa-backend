@@ -17,14 +17,14 @@ import { buildUiAutomationFromAiPlan, validateAiExecutionPlan } from './automati
 import { extractRouteHints } from './automation/codegen.js';
 
 const DEFAULT_MODELS = {
-  gemini: env.GEMINI_MODEL || 'gemini-2.5-flash',
+  anthropic: env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
 };
 
-export const LLM_KEY_REQUIRED_MSG = 'A Gemini API key is required to generate test cases. Set GEMINI_API_KEY in the backend .env, or add a Gemini key in Settings.';
+export const LLM_KEY_REQUIRED_MSG = 'An Anthropic API key is required to generate test cases. Set ANTHROPIC_API_KEY in the backend .env, or add an Anthropic key in Settings.';
 
 /** True when compose may call a live model (project key or .env fallback). */
 export function isLlmReady(provider, apiKey) {
-  return Boolean(provider === 'gemini' && apiKey);
+  return Boolean(provider === 'anthropic' && apiKey);
 }
 
 function assertLlmReady(provider, apiKey) {
@@ -132,23 +132,33 @@ HARD RULES — ZERO INVENTION:
 }`;
 
 async function callLLM({ provider, apiKey, model, system, user }) {
-  if (provider !== 'gemini') {
-    throw new Error('Only Google Gemini is supported. Set provider to gemini.');
+  if (provider !== 'anthropic') {
+    throw new Error('Only Anthropic is supported. Set provider to anthropic.');
   }
-  const m = model || DEFAULT_MODELS.gemini;
-  const url = `${env.GEMINI_BASE_URL}/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const m = model || DEFAULT_MODELS.anthropic;
+  const base = env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+  const url = `${base}/v1/messages`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: user }] }],
-      generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
+      model: m,
+      max_tokens: 8192,
+      temperature: 0.1,
+      system: system || undefined,
+      messages: [{ role: 'user', content: user }],
     }),
   });
-  if (!res.ok) throw await httpErr('Gemini', res);
+  if (!res.ok) throw await httpErr('Anthropic', res);
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
+  return (data.content || [])
+    .filter((p) => p.type === 'text')
+    .map((p) => p.text)
+    .join('') || '';
 }
 
 async function httpErr(name, res) {

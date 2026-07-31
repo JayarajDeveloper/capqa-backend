@@ -36,6 +36,26 @@ export function featureSlugFromName(featureName) {
     .replace(/^-|-$/g, '');
 }
 
+/** Map feature names to correct CapBO routes. Junction/child modules route through parents. */
+const ROUTE_CORRECTIONS = {
+  'articlepartner': '/articles',       // ArticlePartner → accessed via article dialog
+  'article-partner': '/articles',
+  'partnerhierarchy': '/partners',     // PartnerHierarchy → accessed via partner form
+  'partner-hierarchy': '/partners',
+  'articlehierarchy': '/articles',
+  'article-hierarchy': '/articles',
+  'ean': '/articles',
+  'articleretailchain': '/articles',
+  'assortmenttrunk': '/assortments',
+  'trunklevel': '/assortments',
+  'attributeassortmenttrunk': '/assortments',
+};
+
+export function resolveCorrectRoute(featureName) {
+  const slug = featureSlugFromName(featureName);
+  return ROUTE_CORRECTIONS[slug] || `/${slug}`;
+}
+
 /** Dominant pages/ folder from matched chunks (eco-tax vs article-eco-tax). */
 export function primaryFeatureFolder(chunks = [], featureName = '') {
   const slug = featureSlugFromName(featureName);

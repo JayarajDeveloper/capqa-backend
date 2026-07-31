@@ -17,18 +17,18 @@ import { buildUiAutomationFromAiPlan, validateAiExecutionPlan } from './automati
 import { extractRouteHints } from './automation/codegen.js';
 
 const DEFAULT_MODELS = {
-  anthropic: env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+  deepseek: env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
 };
 
-export const LLM_KEY_REQUIRED_MSG = 'An Anthropic API key is required to generate test cases. Set ANTHROPIC_API_KEY in the backend .env, or add an Anthropic key in Settings.';
+export const LLM_KEY_REQUIRED_MSG = 'An DeepSeek API key is required to generate test cases. Set DEEPSEEK_API_KEY in the backend .env, or add an DeepSeek key in Settings.';
 
-/** True when compose may call a live model (project key or .env fallback). */
-export function isLlmReady(provider, apiKey) {
-  return Boolean(provider === 'anthropic' && apiKey);
+/** True when a DeepSeek API key is available. */
+export function isLlmReady(apiKey) {
+  return Boolean(apiKey || env.DEEPSEEK_API_KEY);
 }
 
-function assertLlmReady(provider, apiKey) {
-  if (!isLlmReady(provider, apiKey)) {
+function assertLlmReady(apiKey) {
+  if (!isLlmReady(apiKey)) {
     const err = new Error(LLM_KEY_REQUIRED_MSG);
     err.code = 'LLM_KEY_REQUIRED';
     throw err;
@@ -90,77 +90,43 @@ HARD RULES:
   "existingRowNeedle": "optional or null"
 }`;
 
-const SYSTEM_UI = `You are a senior QA writing a SHORT MANUAL UI browser test plan AND a Playwright execution plan — STRICTLY from RAG-retrieved frontend code.
+const SYSTEM_UI = `You generate Playwright test execution plans. Every step MUST be granular.
 
-WORKFLOW (follow in order):
-1. LEARN from CODE CHUNKS: form fields, testIds, buttons, routes.
-2. ANALYZE title + description: map intent to the learned UI.
-3. WRITE a concise manual test (max ~10 steps) using PREPARED TEST DATA exactly.
-4. WRITE executionPlan steps using ONLY testIds/formControls from INDEXED FORM FIELDS.
-5. Keep acceptanceCriteria SHORT (3–5 items max) — outcomes only, not one AC per field.
+CRITICAL — GRANULARITY:
+- One step per field, per click, per action.
+- 10-field form = 12 steps (nav + add + 10 fills + save).
+- Never group "fill the form" — always "Enter code", "Enter name", "Select type".
 
-HARD RULES — ZERO INVENTION:
-1. ONLY screens, buttons, formControlName, data-testid, routes from CODE CHUNKS or ALLOWED VOCABULARY.
-2. Manual steps: plain language (Navigate → Click Add → Enter/Select → Save → Verify).
-   UPDATE/EDIT: Search → Edit row → change ONLY the fields in PREPARED TEST DATA → Save → Verify. Never Click Add/Create. Never re-fill code/identity fields the user did not mention.
-3. DROPDOWNS: select the first option unless PREPARED TEST DATA / user ask names a specific value — then use that value.
-4. Use PREPARED TEST DATA values exactly in manual steps and executionPlan.
-5. OBEY businessRules and validators — never invent values that fail Angular validation.
-6. route MUST come from ALLOWED VOCABULARY routes or path: in code chunks.
-7. Return ONLY JSON:
-{
-  "uiPlan": {
-    "title": "string — short test case title",
-    "runAs": "UI · Browser",
-    "steps": ["1. ...", "2. ..."],
-    "acceptanceCriteria": [{"id":"AC1","requirement":"...","proof":"..."}],
-    "sourceRefs": ["path:lines"]
-  },
-  "executionPlan": {
-    "action": "create|update|list|delete|exercise",
-    "route": "/from-code",
-    "steps": [
-      {"id":"goto","action":"goto","path":"/route","description":"..."},
-      {"id":"click-create","action":"click","testId":"from-code","description":"..."},
-      {"id":"fill-name","action":"fill","formControl":"name","testId":"from-code","value":"exact value","description":"..."},
-      {"id":"select-country","action":"select","formControl":"country","testId":"from-code","value":"__first__","description":"Select first option"},
-      {"id":"click-save","action":"click","testId":"from-code","description":"..."},
-      {"id":"expect-text","action":"expectText","text":"verify value","description":"..."}
-    ]
-  },
-  "testCases": []
-}`;
+CRITICAL — NAVIGATION:
+- Use ONLY routes from CAPBO NAVIGATION section in prompt.
+- /partners = list page. Add opens create form.
+- /articles = list page. Add opens dialog with tabs (General | Partners | Stock | Documents). Save keeps dialog open.
+- ArticlePartner = accessed from article dialog -> Partners tab -> click Add.
+- Never invent routes like /article-partners, /partners/create.
 
-async function callLLM({ provider, apiKey, model, system, user }) {
-  if (provider !== 'anthropic') {
-    throw new Error('Only Anthropic is supported. Set provider to anthropic.');
-  }
-  const m = model || DEFAULT_MODELS.anthropic;
-  const base = env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
-  const url = `${base}/v1/messages`;
+CRITICAL — CROSS-MODULE:
+- DEPENDENCY CHAIN = generate ALL phases with individual goto/fill/save steps.
+- Use testId and formControl from indexed code.
+
+Return JSON with: "uiPlan" (title, steps), "executionPlan" (action, route, steps[]), "testCases" (negative/boundary). No markdown.`;
+async function callLLM({ apiKey, model, system, user }) {
+  const m = model || env.DEEPSEEK_MODEL;
+  const key = apiKey || env.DEEPSEEK_API_KEY;
+  const base = env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1';
+  const url = `${base}/chat/completions`;
+  const messages = [];
+  if (system) messages.push({ role: 'system', content: system });
+  messages.push({ role: 'user', content: user });
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: m,
-      max_tokens: 8192,
-      temperature: 0.1,
-      system: system || undefined,
-      messages: [{ role: 'user', content: user }],
-    }),
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({ model: m, max_tokens: 8192, temperature: 0.1, messages }),
   });
-  if (!res.ok) throw await httpErr('Anthropic', res);
+  if (!res.ok) throw await httpErr('DeepSeek', res);
   const data = await res.json();
-  return (data.content || [])
-    .filter((p) => p.type === 'text')
-    .map((p) => p.text)
-    .join('') || '';
+  return data.choices?.[0]?.message?.content || '';
 }
-
 async function httpErr(name, res) {
   const t = await res.text().catch(() => '');
   const e = new Error(`${name} ${res.status}: ${t.slice(0, 200)}`);
@@ -222,9 +188,9 @@ function promptTestData(title, description, codeContext, intent, vocab, baseline
  * Requires a live LLM — no parser-only fallback.
  */
 export async function resolveTestDataFromAsk({
-  provider, apiKey, model, title, description, codeContext, intent, vocab, baseline,
+  apiKey, model, title, description, codeContext, intent, vocab, baseline,
 }) {
-  assertLlmReady(provider, apiKey);
+  assertLlmReady(apiKey);
 
   const prepared = prepareModuleTestCase({ codeContext, vocab });
   const enrichedVocab = prepared.enrichedVocab;
@@ -236,7 +202,7 @@ export async function resolveTestDataFromAsk({
   );
 
   const raw = await callLLM({
-    provider,
+   
     apiKey,
     model,
     system: SYSTEM_TEST_DATA,
@@ -444,7 +410,7 @@ function formatPreparedTestDataBlock(testData) {
   );
 }
 
-function promptUi(title, description, codeContext, matchedFeature, intent, testData, enrichedVocab, prepared = null) {
+function promptUi(title, description, codeContext, matchedFeature, intent, testData, enrichedVocab, prepared = null, businessRules = '') {
   const vocab = enrichedVocab || extractCodeVocabulary(codeContext);
   const dataBlock = formatPreparedTestDataBlock(testData);
   const catalog = buildFieldCatalog(vocab.schemaFields || [], vocab.formControls || []);
@@ -456,7 +422,15 @@ function promptUi(title, description, codeContext, matchedFeature, intent, testD
     : '';
   const schemaBlock = formatSchemaBlock(prepared);
   const suggestedRoute = extractRouteHints(codeContext, matchedFeature);
+  
+  // Extract dependency chain from business rules — put it FIRST
+  const depChainMatch = (businessRules || '').match(/DEPENDENCY CHAIN[:\s]+(.+)/i);
+  const depChain = depChainMatch ? depChainMatch[1].trim() : '';
+  const depBlock = depChain ? `\n!! DEPENDENCY CHAIN: ${depChain} — create ALL entities in order !!\n` : '';
+  const navBlock = (businessRules || '').includes('NAVIGATION:') ? '\n' + businessRules.split('NAVIGATION:')[1]?.split('\n\n')[0] || '' : '';
+
   return (
+    depBlock +
     `User ask (may be wrong/vague — CODE WINS): ${title || '(none)'}\n` +
     `Details: ${description || '(none)'}\n` +
     `Parsed intent: action=${intent?.action || 'exercise'}; focus notes=${(intent?.notes || []).join(',') || 'none'}\n` +
@@ -474,8 +448,8 @@ function promptUi(title, description, codeContext, matchedFeature, intent, testD
  * Main compose generator. Returns { cases, uiPlan }.
  * Requires a live LLM — parser output is only used as grounded context for the model.
  */
-export async function generateComposeArtifacts({ provider, apiKey, model, title, description, options, codeContext, uiContext, apiContext, matchedFeature, intent }) {
-  assertLlmReady(provider, apiKey);
+export async function generateComposeArtifacts({ apiKey, model, title, description, options, codeContext, uiContext, apiContext, matchedFeature, intent, businessRules = '' }) {
+  assertLlmReady(apiKey);
 
   const layers = (options?.layers || []).map((l) => String(l).toLowerCase());
   const wantsUi = !layers.length || layers.includes('ui');
@@ -493,7 +467,7 @@ export async function generateComposeArtifacts({ provider, apiKey, model, title,
   const capsCtx = [codeContext, uiContext].filter(Boolean).join('\n\n') || ctx;
   const vocab = extractCodeVocabulary(ctx);
   const testData = await resolveTestDataFromAsk({
-    provider,
+   
     apiKey,
     model,
     title,
@@ -540,7 +514,7 @@ export async function generateComposeArtifacts({ provider, apiKey, model, title,
     uiPlan = buildUiPlanFromCode(ctx, title, featureName, enrichedIntent);
 
     const raw = await callLLM({
-      provider,
+     
       apiKey,
       model,
       system: SYSTEM_UI,
@@ -553,6 +527,7 @@ export async function generateComposeArtifacts({ provider, apiKey, model, title,
         testData,
         prepared.enrichedVocab,
         prepared,
+        businessRules,
       ),
     });
     const parsed = extractJSON(raw);
@@ -631,7 +606,7 @@ export async function generateComposeArtifacts({ provider, apiKey, model, title,
   // When a UI plan exists, keep a single manual case — skip flooding API variant cases
   if (wantsApi && !uiPlan && (apiContext || (!wantsUi && codeContext))) {
     const apiCtx = apiContext || codeContext;
-    const raw = await callLLM({ provider, apiKey, model, system: SYSTEM_API, user: promptApi(title, description, apiCtx, featureName) });
+    const raw = await callLLM({ apiKey, model, system: SYSTEM_API, user: promptApi(title, description, apiCtx, featureName) });
     const parsed = extractJSON(raw);
     const arr = Array.isArray(parsed) ? parsed : parsed?.testCases || [];
     if (!arr.length) {
@@ -664,9 +639,9 @@ export async function generateTestCases(args) {
   return cases;
 }
 
-export async function testConnection({ provider, apiKey, model }) {
+export async function testConnection({ apiKey, model }) {
   await callLLM({
-    provider, apiKey, model,
+    apiKey, model,
     system: 'Reply with JSON {"ok":true}',
     user: 'ping',
   });

@@ -70,7 +70,7 @@ export function createLiveStepTracker({
   const emit = (payload) => {
     onProgress?.(payload);
     if (!logToConsole) return;
-    const prefix = `[Nocta QA · ${modeLabel}]`;
+    const prefix = `[Cap QA · ${modeLabel}]`;
     if (payload.type === 'stepBegin') {
       console.log(`${prefix} … ${payload.step.title}`);
     } else if (payload.type === 'stepEnd') {
@@ -203,7 +203,7 @@ export function buildProfessionalRunLog({
 
   const out = [];
   out.push(DBAR);
-  out.push('  Nocta QA · Playwright E2E');
+  out.push('  Cap QA · Playwright E2E');
   out.push(DBAR);
   if (specPath) out.push(`  Spec     ${specPath}`);
   if (baseUrl) out.push(`  Target   ${baseUrl}`);

@@ -2,6 +2,7 @@
 // Prefers application source (Controllers/Services/UI) over devops/migrations noise.
 
 import { prisma } from '../../db.js';
+
 import { embedOne } from './embed.js';
 
 const STOP = new Set([
@@ -115,7 +116,7 @@ export async function retrieveChunks({
   query,
   topK = 10,
   apiKey = null,
-  provider = 'anthropic',
+  provider = 'deepseek',
   repoIds = null,
   baseUrl = null,
   layers = null,
@@ -269,7 +270,7 @@ export async function retrieveChunks({
     }
   }
 
-  // 3) Embeddings when available (skipped for Anthropic — lexical only)
+  // 3) Embeddings when available (skipped for DeepSeek — lexical only)
   let queryEmb = null;
   try {
     queryEmb = await embedOne(query, { apiKey, provider, baseUrl });

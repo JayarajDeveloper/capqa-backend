@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { buildRunnablePlaywrightSpec, buildRunnableApiSpec } from './codegen.js';
 import { buildProfessionalRunLog, createLiveStepTracker } from './runLogFormatter.js';
+import { env } from '../../env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const GENERATED_E2E_DIR = path.resolve(__dirname, '../../../generated-e2e');
@@ -15,7 +16,7 @@ export const PLAYWRIGHT_CONFIG = path.join(GENERATED_E2E_DIR, 'playwright.config
 const BACKEND_ROOT = path.resolve(__dirname, '../../..');
 
 const DEFAULT_PLAYWRIGHT_CONFIG = `/**
- * Playwright config for Nocta-generated CapBO E2E specs.
+ * Playwright config for Cap QA generated CapBO E2E specs.
  * Run: npx playwright test --config generated-e2e/playwright.config.mjs --headed
  */
 import { config as loadEnv } from 'dotenv';
@@ -27,14 +28,16 @@ import { authStateForTarget } from './auth-state.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.resolve(__dirname, '../.env') });
 
+const DEFAULT_URL = '${env.DEFAULT_TARGET_APP_URL}';
+
 function resolveBaseURL() {
   const raw = (process.env.TARGET_APP_URL || '').trim();
-  if (!raw) return 'http://localhost:4200';
+  if (!raw) return DEFAULT_URL;
   try {
     const u = new URL(raw.includes('://') ? raw : \`https://\${raw}\`);
     return u.origin;
   } catch {
-    return raw.replace(/\\/+$/, '') || 'http://localhost:4200';
+    return raw.replace(/\\\\/+$/, '') || DEFAULT_URL;
   }
 }
 
@@ -43,7 +46,7 @@ const storageState = authStateForTarget(process.env.TARGET_APP_URL || baseURL) |
 
 export default defineConfig({
   testDir: __dirname,
-  testMatch: /.*\\.spec\\.(ts|js|mjs)$/,
+  testMatch: /.*\\\\.spec\\\\.(ts|js|mjs)$/,
   testIgnore: ['**/_reverted_by_claude/**', '**/node_modules/**'],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -52,7 +55,7 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 20_000 },
   reporter: [
-    ['./reporters/nocta-step-reporter.mjs'],
+    ['./reporters/capqa-step-reporter.mjs'],
     ['list'],
   ],
   use: {
@@ -90,27 +93,16 @@ function slugify(name) {
     .slice(0, 48) || 'test';
 }
 
-/** Map feature labels to stable generated-e2e/{slug}-create.spec.ts names. */
-const FEATURE_SPEC_ALIASES = {
-  currencies: 'currency',
-  currency: 'currency',
-  vat: 'vat',
-  'eco-tax': 'eco-tax',
-  ecotax: 'eco-tax',
-  partners: 'partners',
-  partner: 'partners',
-  'retail-chain': 'retail-chain',
-  retailchain: 'retail-chain',
-};
-
-/** Resolve stable spec slug from module id or matched feature label. */
+/** Auto-resolve stable spec slug from any module name. No hardcoded module list needed. */
 export function resolveStableSpecSlug(meta = {}) {
-  if (meta.stableName) return FEATURE_SPEC_ALIASES[slugify(meta.stableName)] || slugify(meta.stableName);
-  if (meta.moduleId) return FEATURE_SPEC_ALIASES[slugify(meta.moduleId)] || slugify(meta.moduleId);
+  if (meta.stableName) return slugify(meta.stableName);
+  if (meta.moduleId) return slugify(meta.moduleId);
   const feature = meta.feature || meta.matchedFeature || meta.title;
   if (!feature) return null;
-  const slug = slugify(feature);
-  return FEATURE_SPEC_ALIASES[slug] || slug;
+  const raw = slugify(feature);
+  // Normalize common plurals → singular for URL matching, but keep
+  // genuine plurals (e.g. "partners" is the CapBO route).
+  return raw;
 }
 
 /** Resolve runnable TS source (helpers import + SSO + fill/select from automation steps). */
@@ -126,7 +118,7 @@ export function resolvePlaywrightSource(automation, meta = {}) {
   });
 }
 
-/** Write *.spec.ts under nocta-backend/generated-e2e/ */
+/** Write *.spec.ts under capqa-backend/generated-e2e/ */
 export async function writePlaywrightSpec(automation, meta = {}) {
   const source = resolvePlaywrightSource(automation, meta);
   await ensurePlaywrightConfig();
@@ -152,7 +144,7 @@ export async function writePlaywrightSpec(automation, meta = {}) {
   };
 }
 
-/** Write API *.spec.ts under nocta-backend/generated-e2e/api/ */
+/** Write API *.spec.ts under capqa-backend/generated-e2e/api/ */
 export async function writeApiSpec(automation, meta = {}) {
   if (!automation?.steps?.length) {
     throw new Error('API automation has no steps — generate a plan with Backend layer first');
@@ -339,7 +331,7 @@ export function runPlaywrightSpecFile({
         durationMs: Date.now() - started,
         engine: 'playwright-cli',
         exitCode: 1,
-        log: `FATAL: ${err.message}\nFix: cd nocta-backend && npx playwright install chromium`,
+        log: `FATAL: ${err.message}\nFix: cd capqa-backend && npx playwright install chromium`,
         specPath: filePath,
       });
     });

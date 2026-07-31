@@ -1,6 +1,6 @@
 /**
  * Map acceptance criteria → pass/fail/pending from a run result (server-side snapshot).
- * Mirrors nocta-frontend/src/lib/acRunStatus.js so reports stay stable after save.
+ * Mirrors capqa-frontend/src/lib/acRunStatus.js so reports stay stable after save.
  */
 
 const AC_PHASE_ORDER = ['navigate', 'form', 'save', 'verify'];

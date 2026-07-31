@@ -1,5 +1,5 @@
 /**
- * Playwright config for Nocta-generated CapBO E2E specs.
+ * Playwright config for Cap QA generated CapBO E2E specs.
  * Run: npx playwright test --config generated-e2e/playwright.config.mjs --headed
  */
 import { config as loadEnv } from 'dotenv';
@@ -11,14 +11,16 @@ import { authStateForTarget } from './auth-state.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.resolve(__dirname, '../.env') });
 
+const DEFAULT_URL = 'http://localhost:4200';
+
 function resolveBaseURL() {
   const raw = (process.env.TARGET_APP_URL || '').trim();
-  if (!raw) return 'http://localhost:4200';
+  if (!raw) return DEFAULT_URL;
   try {
     const u = new URL(raw.includes('://') ? raw : `https://${raw}`);
     return u.origin;
   } catch {
-    return raw.replace(/\/+$/, '') || 'http://localhost:4200';
+    return raw.replace(/\\/+$/, '') || DEFAULT_URL;
   }
 }
 
@@ -27,7 +29,7 @@ const storageState = authStateForTarget(process.env.TARGET_APP_URL || baseURL) |
 
 export default defineConfig({
   testDir: __dirname,
-  testMatch: /.*\.spec\.(ts|js|mjs)$/,
+  testMatch: /.*\\.spec\\.(ts|js|mjs)$/,
   testIgnore: ['**/_reverted_by_claude/**', '**/node_modules/**'],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -36,14 +38,14 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 20_000 },
   reporter: [
-    ['./reporters/nocta-step-reporter.mjs'],
+    ['./reporters/capqa-step-reporter.mjs'],
     ['list'],
   ],
   use: {
     baseURL,
-    trace: process.env.NOCTA_TRACE === 'on' ? 'on' : 'retain-on-failure',
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: process.env.NOCTA_VIDEO === 'on' ? 'on' : 'retain-on-failure',
+    video: 'retain-on-failure',
     actionTimeout: 20_000,
     navigationTimeout: 60_000,
     ...(storageState ? { storageState } : {}),

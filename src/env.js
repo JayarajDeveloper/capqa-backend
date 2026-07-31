@@ -27,19 +27,37 @@ export const env = {
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin123',
   ADMIN_NAME: process.env.ADMIN_NAME || 'Admin',
   ADMIN_ORG: process.env.ADMIN_ORG || 'Cap',
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || process.env.API_KEY || '',
-  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
-  ANTHROPIC_BASE_URL: (process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, ''),
-  /** App under test for Playwright UI runs (e.g. CapBO frontend URL). */
+
+  /** DeepSeek LLM provider (OpenAI-compatible API). */
+  DEEPSEEK_API_KEY: required('DEEPSEEK_API_KEY'),
+  DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
+  DEEPSEEK_BASE_URL: (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, ''),
+
+  /** Default app-under-test URL for Playwright when no per-project target is set. */
+  DEFAULT_TARGET_APP_URL: process.env.DEFAULT_TARGET_APP_URL || 'http://localhost:4200',
+
   TARGET_APP_URL: (process.env.TARGET_APP_URL || '').replace(/\/+$/, ''),
-  /** API base for HTTP automation (defaults to TARGET_APP_URL if unset). */
   TARGET_API_URL: (process.env.TARGET_API_URL || process.env.TARGET_APP_URL || '').replace(/\/+$/, ''),
-  /** CapBO Postgres for Database · SQL (optional; Settings per project preferred). */
   TARGET_DATABASE_URL: process.env.TARGET_DATABASE_URL || '',
-  /**
-   * Local CapBO trees for Compose live hydrate (preferred over GitLab when set).
-   * Point at repo roots so relative paths like src/app/pages/... still match the index.
-   */
+
   CAPQA_LOCAL_UI_ROOT: (process.env.CAPQA_LOCAL_UI_ROOT || '').replace(/\/+$/, ''),
   CAPQA_LOCAL_API_ROOT: (process.env.CAPQA_LOCAL_API_ROOT || '').replace(/\/+$/, ''),
 };
+
+export const AI_PROVIDER = 'deepseek';
+export const AI_DEFAULT_MODEL = env.DEEPSEEK_MODEL;
+
+/** Resolve the DeepSeek API key. */
+export function resolveApiKey() {
+  return env.DEEPSEEK_API_KEY;
+}
+
+/** Resolve the DeepSeek model. */
+export function resolveModel() {
+  return env.DEEPSEEK_MODEL;
+}
+
+/** DeepSeek does not provide embeddings — vector search not available. */
+export function providerSupportsEmbeddings() {
+  return false;
+}

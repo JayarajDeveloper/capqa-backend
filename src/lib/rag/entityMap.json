@@ -1,0 +1,1820 @@
+{
+  "schemasnapshot": {
+    "entities": [
+      "src/Features/SchemaRegistry/Entity/SchemaSnapshot.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "schemadiff": {
+    "entities": [],
+    "services": [
+      "src/Features/SchemaRegistry/Service/SchemaDiffService.php"
+    ],
+    "ui": []
+  },
+  "schemaintrospector": {
+    "entities": [],
+    "services": [
+      "src/Features/SchemaRegistry/Service/SchemaIntrospector.php"
+    ],
+    "ui": []
+  },
+  "dbschemasnapshot": {
+    "entities": [],
+    "services": [
+      "src/Features/SchemaRegistry/Service/DbSchemaSnapshotService.php"
+    ],
+    "ui": []
+  },
+  "schemachangemonitor": {
+    "entities": [],
+    "services": [
+      "src/Features/SchemaRegistry/Service/SchemaChangeMonitorService.php"
+    ],
+    "ui": []
+  },
+  "schemarag": {
+    "entities": [],
+    "services": [
+      "src/Features/SchemaRegistry/Service/SchemaRagService.php"
+    ],
+    "ui": []
+  },
+  "schemaregistry": {
+    "entities": [],
+    "services": [
+      "src/Features/SchemaRegistry/Service/SchemaRegistryService.php"
+    ],
+    "ui": []
+  },
+  "catalogimport": {
+    "entities": [],
+    "services": [
+      "src/Features/CatalogImport/Service/CatalogImportService.php"
+    ],
+    "ui": []
+  },
+  "articlelistarticle": {
+    "entities": [
+      "src/Features/ArticleList/Entity/ArticleListArticle.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "articlelist": {
+    "entities": [
+      "src/Features/ArticleList/Entity/ArticleList.php"
+    ],
+    "services": [
+      "src/Features/ArticleList/Service/ArticleListService.php"
+    ],
+    "ui": []
+  },
+  "articlelisttranslation": {
+    "entities": [
+      "src/Features/ArticleList/Entity/ArticleListTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "itemsourceconfig": {
+    "entities": [
+      "src/Features/ItemSourceConfig/Entity/ItemSourceConfig.php"
+    ],
+    "services": [
+      "src/Features/ItemSourceConfig/Service/ItemSourceConfigService.php"
+    ],
+    "ui": []
+  },
+  "itemsourceconfigtranslation": {
+    "entities": [
+      "src/Features/ItemSourceConfig/Entity/ItemSourceConfigTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "itemsourceschedule": {
+    "entities": [],
+    "services": [
+      "src/Features/ItemSourceConfig/Service/ItemSourceScheduleService.php"
+    ],
+    "ui": []
+  },
+  "itemgroupsiteentity": {
+    "entities": [
+      "src/Features/ItemGroupSite/Entity/ItemGroupSiteEntity.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "itemattribute": {
+    "entities": [
+      "src/Features/Attribute/Entity/ItemAttribute.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "attributevalue": {
+    "entities": [
+      "src/Features/Attribute/Entity/AttributeValue.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "attribute": {
+    "entities": [
+      "src/Features/Attribute/Entity/Attribute.php"
+    ],
+    "services": [
+      "src/Features/Attribute/Service/AttributeService.php"
+    ],
+    "ui": [
+      "attribute/attribute-list/attribute-list.component.html",
+      "attribute/attribute/attribute.component.html"
+    ]
+  },
+  "itemattributetranslation": {
+    "entities": [
+      "src/Features/Attribute/Entity/ItemAttributeTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "articlehierarchyattribute": {
+    "entities": [
+      "src/Features/Attribute/Entity/ArticleHierarchyAttribute.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "attributevaluetranslation": {
+    "entities": [
+      "src/Features/Attribute/Entity/AttributeValueTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "attributetranslation": {
+    "entities": [
+      "src/Features/Attribute/Entity/AttributeTranslation.php"
+    ],
+    "services": [
+      "src/Features/Attribute/Service/AttributeTranslationService.php"
+    ],
+    "ui": []
+  },
+  "codebaseindexer": {
+    "entities": [],
+    "services": [
+      "src/Features/CodebaseKnowledge/Service/CodebaseIndexerService.php"
+    ],
+    "ui": []
+  },
+  "codebaserag": {
+    "entities": [],
+    "services": [
+      "src/Features/CodebaseKnowledge/Service/CodebaseRagService.php"
+    ],
+    "ui": []
+  },
+  "codestructuregraph": {
+    "entities": [],
+    "services": [
+      "src/Features/CodebaseKnowledge/Service/CodeStructureGraphService.php"
+    ],
+    "ui": []
+  },
+  "settings": {
+    "entities": [
+      "src/Features/Enterprise/Entity/Settings.php"
+    ],
+    "services": [
+      "src/Features/Enterprise/Service/SettingsService.php"
+    ],
+    "ui": [
+      "enterprise-settings/enterprise-settings/enterprise-settings.component.html"
+    ]
+  },
+  "enterprise": {
+    "entities": [
+      "src/Features/Enterprise/Entity/Enterprise.php"
+    ],
+    "services": [
+      "src/Features/Enterprise/Service/EnterpriseService.php"
+    ],
+    "ui": []
+  },
+  "keycloakadmin": {
+    "entities": [],
+    "services": [
+      "src/Features/Auth/Service/KeycloakAdminService.php"
+    ],
+    "ui": []
+  },
+  "rolesync": {
+    "entities": [],
+    "services": [
+      "src/Features/Auth/Service/RoleSyncService.php"
+    ],
+    "ui": []
+  },
+  "identityprovider": {
+    "entities": [],
+    "services": [
+      "src/Features/Auth/Service/IdentityProviderService.php"
+    ],
+    "ui": []
+  },
+  "group": {
+    "entities": [
+      "src/Features/Group/Entity/Group.php"
+    ],
+    "services": [
+      "src/Features/Group/Service/GroupService.php"
+    ],
+    "ui": [
+      "referencing/select-group-dialog/select-group-dialog.component.html",
+      "group-of-users/group-of-users-form/group-of-users-form.component.html",
+      "group-of-users/group-of-users-list/group-of-users-list.component.html",
+      "group-of-users/group-of-users-help-dialog/group-of-users-help-dialog.component.html",
+      "groups/groups/groups.component.html",
+      "groups/groups-list/groups-list.component.html"
+    ]
+  },
+  "notification": {
+    "entities": [
+      "src/Features/Notification/Entity/Notification.php"
+    ],
+    "services": [
+      "src/Features/Notification/Service/NotificationService.php"
+    ],
+    "ui": []
+  },
+  "citytranslation": {
+    "entities": [
+      "src/Features/Location/Entity/CityTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "country": {
+    "entities": [
+      "src/Features/Location/Entity/Country.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "city": {
+    "entities": [
+      "src/Features/Location/Entity/City.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "countrytranslation": {
+    "entities": [
+      "src/Features/Location/Entity/CountryTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "location": {
+    "entities": [],
+    "services": [
+      "src/Features/Location/Service/LocationService.php"
+    ],
+    "ui": []
+  },
+  "paymentmethod": {
+    "entities": [
+      "src/Features/Payment/Entity/PaymentMethod.php"
+    ],
+    "services": [
+      "src/Features/Payment/Service/PaymentMethodService.php"
+    ],
+    "ui": []
+  },
+  "creditdatereferencetranslation": {
+    "entities": [
+      "src/Features/Payment/Entity/CreditDateReferenceTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "offsetdatereferencetranslation": {
+    "entities": [
+      "src/Features/Payment/Entity/OffsetDateReferenceTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "offsetdatereference": {
+    "entities": [
+      "src/Features/Payment/Entity/OffsetDateReference.php"
+    ],
+    "services": [
+      "src/Features/Payment/Service/OffsetDateReferenceService.php"
+    ],
+    "ui": []
+  },
+  "basedatereferencetranslation": {
+    "entities": [
+      "src/Features/Payment/Entity/BaseDateReferenceTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "paymentagreement": {
+    "entities": [
+      "src/Features/Payment/Entity/PaymentAgreement.php"
+    ],
+    "services": [
+      "src/Features/Payment/Service/PaymentAgreementService.php"
+    ],
+    "ui": [
+      "payment-agreement/payment-agree/payment-agree.component.html",
+      "payment-agreement/payment-agree-list/payment-agree-list.component.html"
+    ]
+  },
+  "paymentmethodtranslation": {
+    "entities": [
+      "src/Features/Payment/Entity/PaymentMethodTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "basedatereference": {
+    "entities": [
+      "src/Features/Payment/Entity/BaseDateReference.php"
+    ],
+    "services": [
+      "src/Features/Payment/Service/BaseDateReferenceService.php"
+    ],
+    "ui": []
+  },
+  "creditdatereference": {
+    "entities": [
+      "src/Features/Payment/Entity/CreditDateReference.php"
+    ],
+    "services": [
+      "src/Features/Payment/Service/CreditDateReferenceService.php"
+    ],
+    "ui": []
+  },
+  "paymentmethodreference": {
+    "entities": [
+      "src/Features/Payment/Entity/PaymentMethodReference.php"
+    ],
+    "services": [],
+    "ui": [
+      "payment-method-reference/payment-method-reference-list/payment-method-reference-list.component.html",
+      "payment-method-reference/payment-method-reference/payment-method-reference.component.html"
+    ]
+  },
+  "paymentagreementtranslation": {
+    "entities": [
+      "src/Features/Payment/Entity/PaymentAgreementTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "paymentmethodref": {
+    "entities": [],
+    "services": [
+      "src/Features/Payment/Service/PaymentMethodRefService.php"
+    ],
+    "ui": []
+  },
+  "erpadapter": {
+    "entities": [],
+    "services": [
+      "src/Features/ErpAdapter/Service/ErpAdapterService.php"
+    ],
+    "ui": []
+  },
+  "erprequestvalidator": {
+    "entities": [],
+    "services": [
+      "src/Features/ErpAdapter/Service/ErpRequestValidator.php"
+    ],
+    "ui": []
+  },
+  "stockmovementtype": {
+    "entities": [
+      "src/Features/StockMovement/Entity/StockMovementType.php"
+    ],
+    "services": [
+      "src/Features/StockMovement/Service/StockMovementTypeService.php"
+    ],
+    "ui": []
+  },
+  "stockitem": {
+    "entities": [
+      "src/Features/StockMovement/Entity/StockItem.php"
+    ],
+    "services": [
+      "src/Features/StockMovement/Service/StockItemService.php"
+    ],
+    "ui": []
+  },
+  "stockmovementtypetranslation": {
+    "entities": [
+      "src/Features/StockMovement/Entity/StockMovementTypeTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "stockmovement": {
+    "entities": [
+      "src/Features/StockMovement/Entity/StockMovement.php"
+    ],
+    "services": [
+      "src/Features/StockMovement/Service/StockMovementService.php"
+    ],
+    "ui": []
+  },
+  "retailchain": {
+    "entities": [
+      "src/Features/RetailChain/Entity/RetailChain.php"
+    ],
+    "services": [
+      "src/Features/RetailChain/Service/RetailChainService.php"
+    ],
+    "ui": []
+  },
+  "articleretailchain": {
+    "entities": [
+      "src/Features/RetailChain/Entity/ArticleRetailChain.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "user": {
+    "entities": [
+      "src/Features/User/Entity/User.php"
+    ],
+    "services": [
+      "src/Features/User/Service/UserService.php"
+    ],
+    "ui": [
+      "users/users.component.html",
+      "users/user-form/user-form.component.html",
+      "users/user-list/user-list.component.html",
+      "users/user-help-dialog/user-help-dialog.component.html"
+    ]
+  },
+  "extlogentry": {
+    "entities": [
+      "src/Features/Shared/Entity/ExtLogEntry.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "tenantcontext": {
+    "entities": [],
+    "services": [
+      "src/Features/Shared/Service/TenantContext.php"
+    ],
+    "ui": []
+  },
+  "textencodingnormalizer": {
+    "entities": [],
+    "services": [
+      "src/Features/Shared/Service/TextEncodingNormalizer.php"
+    ],
+    "ui": []
+  },
+  "emailidndecoder": {
+    "entities": [],
+    "services": [
+      "src/Features/Shared/Service/EmailIdnDecoder.php"
+    ],
+    "ui": []
+  },
+  "languagecontext": {
+    "entities": [],
+    "services": [
+      "src/Features/Shared/Service/LanguageContext.php"
+    ],
+    "ui": []
+  },
+  "document": {
+    "entities": [
+      "src/Features/Document/Entity/Document.php"
+    ],
+    "services": [
+      "src/Features/Document/Service/DocumentService.php"
+    ],
+    "ui": [
+      "document-branding-customization/document-branding-customization.component.html",
+      "document-management/document-management-form/document-management-form.component.html",
+      "document-branding-customization/html-content-editor/html-content-editor.component.html",
+      "articles/article-detail/article-detail-documents-tab/article-detail-documents-tab.component.html",
+      "document-management/document-management-list/document-management-list.component.html"
+    ]
+  },
+  "documenttypetranslation": {
+    "entities": [
+      "src/Features/Document/Entity/DocumentTypeTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "documenttype": {
+    "entities": [
+      "src/Features/Document/Entity/DocumentType.php"
+    ],
+    "services": [
+      "src/Features/Document/Service/DocumentTypeService.php"
+    ],
+    "ui": []
+  },
+  "entitydocumentrule": {
+    "entities": [
+      "src/Features/Document/Entity/EntityDocumentRule.php"
+    ],
+    "services": [
+      "src/Features/Document/Service/EntityDocumentRuleService.php"
+    ],
+    "ui": []
+  },
+  "documenttemplate": {
+    "entities": [
+      "src/Features/Document/Entity/DocumentTemplate.php"
+    ],
+    "services": [
+      "src/Features/Document/Service/DocumentTemplateService.php"
+    ],
+    "ui": []
+  },
+  "templateresolver": {
+    "entities": [],
+    "services": [
+      "src/Features/Document/Service/TemplateResolverService.php"
+    ],
+    "ui": []
+  },
+  "pdfgeneration": {
+    "entities": [],
+    "services": [
+      "src/Features/Document/Service/PdfGenerationService.php"
+    ],
+    "ui": []
+  },
+  "storage": {
+    "entities": [],
+    "services": [
+      "src/Features/Document/Service/StorageService.php"
+    ],
+    "ui": []
+  },
+  "pricelisthistory": {
+    "entities": [
+      "src/Features/PriceList/Entity/PriceListHistory.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "salespricehistory": {
+    "entities": [
+      "src/Features/PriceList/Entity/SalesPriceHistory.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "pricelist": {
+    "entities": [
+      "src/Features/Pricing/Entity/PriceList.php"
+    ],
+    "services": [
+      "src/Features/PriceList/Service/PriceListService.php"
+    ],
+    "ui": [
+      "price-list/price-list-history/price-list-history.component.html",
+      "price-list/price-list-mgmt-form/price-list-mgmt-form.component.html",
+      "price-list/price-mgmt-list/price-mgmt-list.component.html"
+    ]
+  },
+  "commercialagreementtranslation": {
+    "entities": [
+      "src/Features/Commercial/Entity/CommercialAgreementTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "commercialagreement": {
+    "entities": [
+      "src/Features/Commercial/Entity/CommercialAgreement.php"
+    ],
+    "services": [
+      "src/Features/Commercial/Service/CommercialAgreementService.php"
+    ],
+    "ui": [
+      "commercial-agreement/comm-agree-list/comm-agree-list.component.html",
+      "commercial-agreement/comm-agree/comm-agree.component.html"
+    ]
+  },
+  "commercialagreementtype": {
+    "entities": [
+      "src/Features/Commercial/Entity/CommercialAgreementType.php"
+    ],
+    "services": [
+      "src/Features/Commercial/Service/CommercialAgreementTypeService.php"
+    ],
+    "ui": [
+      "commercial-agreement-type/comm-agree-type-list/comm-agree-type-list.component.html",
+      "commercial-agreement-type/comm-agree-type/comm-agree-type.component.html"
+    ]
+  },
+  "sagaexecution": {
+    "entities": [
+      "src/Features/Saga/Entity/SagaExecution.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "sagastep": {
+    "entities": [
+      "src/Features/Saga/Entity/SagaStep.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "sagaorchestrator": {
+    "entities": [],
+    "services": [
+      "src/Features/Saga/Service/SagaOrchestrator.php"
+    ],
+    "ui": []
+  },
+  "retryexecutor": {
+    "entities": [],
+    "services": [
+      "src/Features/Saga/Service/RetryExecutor.php"
+    ],
+    "ui": []
+  },
+  "vat": {
+    "entities": [
+      "src/Features/Vat/Entity/Vat.php"
+    ],
+    "services": [
+      "src/Features/Vat/Service/VatService.php"
+    ],
+    "ui": [
+      "vat/vat/vat/vat.component.html",
+      "vat/vat/vat-list/vat-list.component.html"
+    ]
+  },
+  "vattranslation": {
+    "entities": [
+      "src/Features/Vat/Entity/VatTranslation.php"
+    ],
+    "services": [
+      "src/Features/Vat/Service/VatTranslationService.php"
+    ],
+    "ui": []
+  },
+  "outofscopelogger": {
+    "entities": [],
+    "services": [
+      "src/Features/OutOfScope/Service/OutOfScopeLogger.php"
+    ],
+    "ui": []
+  },
+  "outofscopedetector": {
+    "entities": [],
+    "services": [
+      "src/Features/OutOfScope/Service/OutOfScopeDetector.php"
+    ],
+    "ui": []
+  },
+  "businessrules": {
+    "entities": [],
+    "services": [
+      "src/Features/BusinessRules/Service/BusinessRulesService.php"
+    ],
+    "ui": []
+  },
+  "businessunitaddress": {
+    "entities": [
+      "src/Features/Partner/Entity/BusinessUnitAddress.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "address": {
+    "entities": [
+      "src/Features/Partner/Entity/Address.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "partner": {
+    "entities": [
+      "src/Features/Partner/Entity/Partner.php"
+    ],
+    "services": [
+      "src/Features/Partner/Service/PartnerService.php"
+    ],
+    "ui": [
+      "partners/partner-list/partner-list.component.html",
+      "partners/partner/partner.component.html"
+    ]
+  },
+  "businessunit": {
+    "entities": [
+      "src/Features/Partner/Entity/BusinessUnit.php"
+    ],
+    "services": [
+      "src/Features/Partner/Service/BusinessUnitService.php"
+    ],
+    "ui": []
+  },
+  "partnerhierarchy": {
+    "entities": [
+      "src/Features/Partner/Entity/PartnerHierarchy.php"
+    ],
+    "services": [
+      "src/Features/Partner/Service/PartnerHierarchyService.php"
+    ],
+    "ui": [
+      "partner-hierarchy/partner-hierarchy.component.html",
+      "partner-hierarchy/partner-hierarchy-help-dialog/partner-hierarchy-help-dialog.component.html"
+    ]
+  },
+  "articlepartner": {
+    "entities": [
+      "src/Features/Partner/Entity/ArticlePartner.php"
+    ],
+    "services": [
+      "src/Features/Partner/Service/ArticlePartnerService.php"
+    ],
+    "ui": [
+      "articles/article-partner-detail/article-partner-detail.component.html",
+      "articles/article-partner-list-management/article-partner-list-management.component.html"
+    ]
+  },
+  "ratelimitconfigregistry": {
+    "entities": [],
+    "services": [
+      "src/Features/RateLimit/Service/RateLimitConfigRegistry.php"
+    ],
+    "ui": []
+  },
+  "ratelimitkeyresolver": {
+    "entities": [],
+    "services": [
+      "src/Features/RateLimit/Service/RateLimitKeyResolver.php"
+    ],
+    "ui": []
+  },
+  "ratelimiter": {
+    "entities": [],
+    "services": [
+      "src/Features/RateLimit/Service/RateLimiter.php"
+    ],
+    "ui": []
+  },
+  "llmusagelog": {
+    "entities": [
+      "src/Features/LlmTracking/Entity/LlmUsageLog.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "llmusageaggregator": {
+    "entities": [],
+    "services": [
+      "src/Features/LlmTracking/Service/LlmUsageAggregator.php"
+    ],
+    "ui": []
+  },
+  "llmpricing": {
+    "entities": [],
+    "services": [
+      "src/Features/LlmTracking/Service/LlmPricingService.php"
+    ],
+    "ui": []
+  },
+  "llmusagetracker": {
+    "entities": [],
+    "services": [
+      "src/Features/LlmTracking/Service/LlmUsageTracker.php"
+    ],
+    "ui": []
+  },
+  "streamingorchestrator": {
+    "entities": [],
+    "services": [
+      "src/Features/ResponseStreaming/Service/StreamingOrchestrator.php"
+    ],
+    "ui": []
+  },
+  "geministreamingprovider": {
+    "entities": [],
+    "services": [
+      "src/Features/ResponseStreaming/Service/GeminiStreamingProvider.php"
+    ],
+    "ui": []
+  },
+  "groupofusers": {
+    "entities": [],
+    "services": [
+      "src/Features/GroupOfUsers/Service/GroupOfUsersService.php"
+    ],
+    "ui": []
+  },
+  "site": {
+    "entities": [
+      "src/Features/Site/Entity/Site.php"
+    ],
+    "services": [
+      "src/Features/Site/Service/SiteService.php"
+    ],
+    "ui": [
+      "sites/site/site.component.html",
+      "sites/site-list/site-list.component.html"
+    ]
+  },
+  "purchaselisttranslation": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseListTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "purchasetariff": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseTariff.php"
+    ],
+    "services": [
+      "src/Features/Purchase/Service/PurchaseTariffService.php"
+    ],
+    "ui": []
+  },
+  "purchaseorder": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseOrder.php"
+    ],
+    "services": [
+      "src/Features/Purchase/Service/PurchaseOrderService.php"
+    ],
+    "ui": []
+  },
+  "purchasetarifftranslation": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseTariffTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "purchasetariffimport": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseTariffImport.php"
+    ],
+    "services": [
+      "src/Features/Purchase/Service/PurchaseTariffImportService.php"
+    ],
+    "ui": []
+  },
+  "purchaselist": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseList.php"
+    ],
+    "services": [
+      "src/Features/Purchase/Service/PurchaseListService.php"
+    ],
+    "ui": []
+  },
+  "purchaseorderline": {
+    "entities": [
+      "src/Features/Purchase/Entity/PurchaseOrderLine.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "purchasepriceupdater": {
+    "entities": [],
+    "services": [
+      "src/Features/Purchase/Service/PurchasePriceUpdaterService.php"
+    ],
+    "ui": []
+  },
+  "purchaseorderformat": {
+    "entities": [],
+    "services": [
+      "src/Features/Purchase/Service/PurchaseOrderFormatService.php"
+    ],
+    "ui": []
+  },
+  "purchaseordertariffresolution": {
+    "entities": [],
+    "services": [
+      "src/Features/Purchase/Service/PurchaseOrderTariffResolutionService.php"
+    ],
+    "ui": []
+  },
+  "agentuichatlog": {
+    "entities": [
+      "src/Features/AgentUIChat/Entity/AgentUiChatLog.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "geminiuiagent": {
+    "entities": [],
+    "services": [
+      "src/Features/AgentUIChat/Service/GeminiUIAgentService.php"
+    ],
+    "ui": []
+  },
+  "geminipromptregistry": {
+    "entities": [],
+    "services": [
+      "src/Features/AgentUIChat/Service/GeminiPromptRegistry.php"
+    ],
+    "ui": []
+  },
+  "assortmenttrunk": {
+    "entities": [
+      "src/Features/Assortment/Entity/AssortmentTrunk.php"
+    ],
+    "services": [
+      "src/Features/Assortment/Service/AssortmentTrunkService.php"
+    ],
+    "ui": []
+  },
+  "assortment": {
+    "entities": [
+      "src/Features/Assortment/Entity/Assortment.php"
+    ],
+    "services": [],
+    "ui": [
+      "assortments/trunk-hierarchy-tree/trunk-hierarchy-tree.component.html",
+      "assortment-managment/assortment-management-dialog/assortment-management-dialog.component.html",
+      "assortment-managment/assortment-management-mass-work/assortment-management-mass-work.component.html",
+      "assortment-deployment/assortment-deployment.component.html",
+      "assortments/assortments.component.html",
+      "assortment-managment/change-trunk-dialog/change-trunk-dialog.component.html",
+      "assortments/assortment-selection-error-dialog/assortment-selection-error-dialog.component.html",
+      "assortments/assortment-recap-dialog/assortment-recap-dialog.component.html",
+      "assortments/assortment-conflict-dialog/assortment-conflict-dialog.component.html",
+      "assortment-managment/assortment-management-list/assortment-management-list.component.html"
+    ]
+  },
+  "assortmentsite": {
+    "entities": [
+      "src/Features/Assortment/Entity/AssortmentSite.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "trunklevel": {
+    "entities": [
+      "src/Features/Assortment/Entity/TrunkLevel.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "attributeassortmenttrunk": {
+    "entities": [
+      "src/Features/Assortment/Entity/AttributeAssortmentTrunk.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "assortmenttrunktranslation": {
+    "entities": [
+      "src/Features/Assortment/Entity/AssortmentTrunkTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "assortmentexceptionattribute": {
+    "entities": [
+      "src/Features/Assortment/Entity/AssortmentExceptionAttribute.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "assortmentdeployment": {
+    "entities": [],
+    "services": [
+      "src/Features/Assortment/Service/AssortmentDeploymentService.php"
+    ],
+    "ui": []
+  },
+  "promotionalassortmentlifecycle": {
+    "entities": [],
+    "services": [
+      "src/Features/Assortment/Service/PromotionalAssortmentLifecycleService.php"
+    ],
+    "ui": []
+  },
+  "trunkleveleligibility": {
+    "entities": [],
+    "services": [
+      "src/Features/Assortment/Service/TrunkLevelEligibilityService.php"
+    ],
+    "ui": []
+  },
+  "promotionalassortment": {
+    "entities": [],
+    "services": [
+      "src/Features/Assortment/Service/PromotionalAssortmentService.php"
+    ],
+    "ui": []
+  },
+  "assortmentsiteupdater": {
+    "entities": [],
+    "services": [
+      "src/Features/Assortment/Service/AssortmentSiteUpdaterService.php"
+    ],
+    "ui": []
+  },
+  "assortmentoverlap": {
+    "entities": [],
+    "services": [
+      "src/Features/Assortment/Service/AssortmentOverlapService.php"
+    ],
+    "ui": []
+  },
+  "moduledataexportreport": {
+    "entities": [
+      "src/Features/Report/Entity/ModuleDataExportReport.php"
+    ],
+    "services": [
+      "src/Features/Report/Service/ModuleDataExportReportService.php"
+    ],
+    "ui": []
+  },
+  "erpagentsettings": {
+    "entities": [
+      "src/Features/ErpAgent/Entity/ErpAgentSettings.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "erpagentauditlog": {
+    "entities": [
+      "src/Features/ErpAgent/Entity/ErpAgentAuditLog.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "erpagent": {
+    "entities": [],
+    "services": [
+      "src/Features/ErpAgent/Service/ErpAgentService.php"
+    ],
+    "ui": []
+  },
+  "erpagentconnectionprovider": {
+    "entities": [],
+    "services": [
+      "src/Features/ErpAgent/Service/ErpAgentConnectionProvider.php"
+    ],
+    "ui": []
+  },
+  "erpagentknowledgeprovider": {
+    "entities": [],
+    "services": [
+      "src/Features/ErpAgent/Service/ErpAgentKnowledgeProvider.php"
+    ],
+    "ui": []
+  },
+  "erpagentsession": {
+    "entities": [],
+    "services": [
+      "src/Features/ErpAgent/Service/ErpAgentSessionService.php"
+    ],
+    "ui": []
+  },
+  "jiratestresult": {
+    "entities": [
+      "src/Features/JiraTestRunner/Entity/JiraTestResult.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "jtrrun": {
+    "entities": [
+      "src/Features/JiraTestRunner/Entity/JtrRun.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "planner": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/PlannerService.php"
+    ],
+    "ui": []
+  },
+  "databaseverification": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/DatabaseVerificationService.php"
+    ],
+    "ui": []
+  },
+  "modelclient": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/ModelClient.php"
+    ],
+    "ui": []
+  },
+  "agentinputbuilder": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/AgentInputBuilder.php"
+    ],
+    "ui": []
+  },
+  "jtrgrounding": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/JtrGroundingService.php"
+    ],
+    "ui": []
+  },
+  "runlauncher": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/RunLauncher.php"
+    ],
+    "ui": []
+  },
+  "jiraclient": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/JiraClient.php"
+    ],
+    "ui": []
+  },
+  "testreportarchiver": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/TestReportArchiver.php"
+    ],
+    "ui": []
+  },
+  "jiratestrunner": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/JiraTestRunnerService.php"
+    ],
+    "ui": []
+  },
+  "dbvaluesampler": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/DbValueSampler.php"
+    ],
+    "ui": []
+  },
+  "uilaneexecutor": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/UiLaneExecutor.php"
+    ],
+    "ui": []
+  },
+  "codeverification": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/CodeVerificationService.php"
+    ],
+    "ui": []
+  },
+  "runoutcomenotifier": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/RunOutcomeNotifier.php"
+    ],
+    "ui": []
+  },
+  "s3evidencestore": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/S3EvidenceStore.php"
+    ],
+    "ui": []
+  },
+  "playwrightcodegen": {
+    "entities": [],
+    "services": [
+      "src/Features/JiraTestRunner/Service/PlaywrightCodegenService.php"
+    ],
+    "ui": []
+  },
+  "articlehierarchytranslation": {
+    "entities": [
+      "src/Features/Article/Entity/ArticleHierarchyTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "articlecomposition": {
+    "entities": [
+      "src/Features/Article/Entity/ArticleComposition.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "articlehierarchy": {
+    "entities": [
+      "src/Features/Article/Entity/ArticleHierarchy.php"
+    ],
+    "services": [
+      "src/Features/Article/Service/ArticleHierarchyService.php"
+    ],
+    "ui": []
+  },
+  "articletranslation": {
+    "entities": [
+      "src/Features/Article/Entity/ArticleTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "eancode": {
+    "entities": [
+      "src/Features/Article/Entity/EanCode.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "article": {
+    "entities": [
+      "src/Features/Article/Entity/Article.php"
+    ],
+    "services": [
+      "src/Features/Article/Service/ArticleService.php"
+    ],
+    "ui": [
+      "article-price-management/incoming-price-changes/incoming-price-changes.component.html",
+      "articles/mercurial-price-dialog/mercurial-price-dialog.component.html",
+      "articles/article-detail/article-detail-stock-tab/article-detail-stock-tab.component.html",
+      "articles/article-list/article-list.component.html",
+      "articles/article-lists/articles-lists/articles-lists.component.html",
+      "article-price-management/sales-price-history/sales-price-history.component.html",
+      "articles/article-local/article-local.component.html",
+      "articles/article-lists/article-list-detail/article-list-detail.component.html",
+      "articles/article-local/article-local-list.component.html",
+      "articles/article-help-dialog/article-help-dialog.component.html",
+      "article-eco-tax/article-eco-tax-details/article-eco-tax-details.component.html",
+      "articles/article-detail/article-detail.component.html",
+      "article-price-management/article-price-management.component.html",
+      "local-articles/local-articles-configuration/local-articles-configuration.component.html",
+      "articles/central-validator/rejection-modal/rejection-modal.component.html",
+      "articles/central-validator/central-validator-list/central-validator-list.component.html",
+      "articles/article-detail/article-detail-general-tab/article-detail-general-tab.component.html",
+      "article-eco-tax/article-eco-tax-list/article-eco-tax-list.component.html"
+    ]
+  },
+  "articlebulkupdate": {
+    "entities": [],
+    "services": [
+      "src/Features/Article/Service/ArticleBulkUpdateService.php"
+    ],
+    "ui": []
+  },
+  "localarticlessettings": {
+    "entities": [],
+    "services": [
+      "src/Features/Article/Service/LocalArticlesSettingsService.php"
+    ],
+    "ui": []
+  },
+  "articledereference": {
+    "entities": [],
+    "services": [
+      "src/Features/Article/Service/ArticleDereferenceService.php"
+    ],
+    "ui": []
+  },
+  "aiassistantsettings": {
+    "entities": [
+      "src/Features/AiAssistant/Entity/AiAssistantSettings.php"
+    ],
+    "services": [
+      "src/Features/AiAssistant/Service/AiAssistantSettingsService.php"
+    ],
+    "ui": []
+  },
+  "capvisionmodifyjob": {
+    "entities": [
+      "src/Features/AiAssistant/Entity/CapvisionModifyJob.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "capvisionconversationmessage": {
+    "entities": [
+      "src/Features/AiAssistant/Entity/CapvisionConversationMessage.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "capvisionconversation": {
+    "entities": [
+      "src/Features/AiAssistant/Entity/CapvisionConversation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "markdowntoadfconverter": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/MarkdownToAdfConverter.php"
+    ],
+    "ui": []
+  },
+  "capvisionrepo": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/CapvisionRepoService.php"
+    ],
+    "ui": []
+  },
+  "imageeditor": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/ImageEditorService.php"
+    ],
+    "ui": []
+  },
+  "aiassistantchat": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/AiAssistantChatService.php"
+    ],
+    "ui": []
+  },
+  "jiraissuelinker": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/JiraIssueLinker.php"
+    ],
+    "ui": []
+  },
+  "modalintentdetector": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/ModalIntentDetector.php"
+    ],
+    "ui": []
+  },
+  "intentrouter": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/IntentRouter.php"
+    ],
+    "ui": []
+  },
+  "jirapush": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/JiraPushService.php"
+    ],
+    "ui": []
+  },
+  "textnormalizer": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/TextNormalizer.php"
+    ],
+    "ui": []
+  },
+  "anthropicvision": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/AnthropicVisionService.php"
+    ],
+    "ui": []
+  },
+  "artifactsanitizer": {
+    "entities": [],
+    "services": [
+      "src/Features/AiAssistant/Service/ArtifactSanitizer.php"
+    ],
+    "ui": []
+  },
+  "circuitbreaker": {
+    "entities": [],
+    "services": [
+      "src/Features/CircuitBreaker/Service/CircuitBreaker.php"
+    ],
+    "ui": []
+  },
+  "failoverlogger": {
+    "entities": [],
+    "services": [
+      "src/Features/CircuitBreaker/Service/FailoverLogger.php"
+    ],
+    "ui": []
+  },
+  "roundingrule": {
+    "entities": [
+      "src/Features/Pricing/Entity/RoundingRule.php"
+    ],
+    "services": [
+      "src/Features/Pricing/Service/RoundingRuleService.php"
+    ],
+    "ui": []
+  },
+  "unit": {
+    "entities": [
+      "src/Features/Pricing/Entity/Unit.php"
+    ],
+    "services": [
+      "src/Features/Pricing/Service/UnitService.php"
+    ],
+    "ui": [
+      "metric-units/metric-units-details/metric-units-details.component.html",
+      "metric-units/metric-units-list/metric-units-list.component.html"
+    ]
+  },
+  "unittranslation": {
+    "entities": [
+      "src/Features/Pricing/Entity/UnitTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "pricelisttranslation": {
+    "entities": [
+      "src/Features/Pricing/Entity/PriceListTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "salesprice": {
+    "entities": [
+      "src/Features/Pricing/Entity/SalesPrice.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "salestariff": {
+    "entities": [],
+    "services": [
+      "src/Features/Pricing/Service/SalesTariffService.php"
+    ],
+    "ui": []
+  },
+  "upcomingprice": {
+    "entities": [],
+    "services": [
+      "src/Features/Pricing/Service/UpcomingPriceService.php"
+    ],
+    "ui": []
+  },
+  "currencyrate": {
+    "entities": [
+      "src/Features/Currency/Entity/CurrencyRate.php"
+    ],
+    "services": [
+      "src/Features/Currency/Service/CurrencyRateService.php"
+    ],
+    "ui": []
+  },
+  "currencytranslation": {
+    "entities": [
+      "src/Features/Currency/Entity/CurrencyTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "currency": {
+    "entities": [
+      "src/Features/Currency/Entity/Currency.php"
+    ],
+    "services": [
+      "src/Features/Currency/Service/CurrencyService.php"
+    ],
+    "ui": [
+      "currencies/currency-list/currency-list.component.html",
+      "currencies/currency/currency.component.html"
+    ]
+  },
+  "deletionguard": {
+    "entities": [],
+    "services": [
+      "src/Features/DeletionGuard/Service/DeletionGuard.php"
+    ],
+    "ui": []
+  },
+  "deletionlogger": {
+    "entities": [],
+    "services": [
+      "src/Features/DeletionGuard/Service/DeletionLogger.php"
+    ],
+    "ui": []
+  },
+  "ecotaxtranslation": {
+    "entities": [
+      "src/Features/Ecotax/Entity/EcotaxTranslation.php"
+    ],
+    "services": [],
+    "ui": []
+  },
+  "articleecotax": {
+    "entities": [
+      "src/Features/Ecotax/Entity/ArticleEcotax.php"
+    ],
+    "services": [
+      "src/Features/Ecotax/Service/ArticleEcotaxService.php"
+    ],
+    "ui": []
+  },
+  "ecotax": {
+    "entities": [
+      "src/Features/Ecotax/Entity/Ecotax.php"
+    ],
+    "services": [
+      "src/Features/Ecotax/Service/EcotaxService.php"
+    ],
+    "ui": [
+      "eco-tax/eco-tax-details/eco-tax-details.component.html",
+      "eco-tax/eco-tax-list/eco-tax-list.component.html"
+    ]
+  },
+  "conversationsession": {
+    "entities": [],
+    "services": [
+      "src/Features/ConversationSession/Service/ConversationSessionService.php"
+    ],
+    "ui": []
+  },
+  "crossmoduleentityresolver": {
+    "entities": [],
+    "services": [
+      "src/Features/ConversationSession/Service/CrossModuleEntityResolver.php"
+    ],
+    "ui": []
+  },
+  "conversationsessioncrypto": {
+    "entities": [],
+    "services": [
+      "src/Features/ConversationSession/Service/ConversationSessionCrypto.php"
+    ],
+    "ui": []
+  },
+  "contextreferenceresolver": {
+    "entities": [],
+    "services": [
+      "src/Features/ConversationSession/Service/ContextReferenceResolver.php"
+    ],
+    "ui": []
+  },
+  "conversationsessionstore": {
+    "entities": [],
+    "services": [
+      "src/Features/ConversationSession/Service/ConversationSessionStore.php"
+    ],
+    "ui": []
+  },
+  "llmgateway": {
+    "entities": [],
+    "services": [
+      "src/Features/LlmGateway/Service/LlmGateway.php"
+    ],
+    "ui": []
+  },
+  "llmgatewayfactory": {
+    "entities": [],
+    "services": [
+      "src/Features/LlmGateway/Service/LlmGatewayFactory.php"
+    ],
+    "ui": []
+  },
+  "reporting": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "reporting/export-report-list/export-report-list.component.html"
+    ]
+  },
+  "adminpanel": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "admin-panel/admin-panel.component.html"
+    ]
+  },
+  "commander": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "commander/commander.component.html"
+    ]
+  },
+  "purchaseorders": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "purchase-orders/purchase-orders-list/purchase-orders-list.component.html",
+      "purchase-orders/purchase-orders/purchase-orders.component.html"
+    ]
+  },
+  "category": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "category/category-help-dialog/category-help-dialog.component.html",
+      "category/category.component.html"
+    ]
+  },
+  "hierarchytree": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "hierarchy-tree/hierarchy-tree.component.html"
+    ]
+  },
+  "playwrightreports": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "playwright-reports/playwright-reports.component.html"
+    ]
+  },
+  "referencing": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "referencing/referencing.component.html"
+    ]
+  },
+  "offset_date_reference": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "offset_date_reference/offset-date-reference-list/offset-date-reference-list.component.html",
+      "offset_date_reference/offset-date-reference/offset-date-reference.component.html"
+    ]
+  },
+  "capvision": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "capvision/capvision.component.html",
+      "capvision/wireframe-preview/wireframe-preview.component.html"
+    ]
+  },
+  "datasourceconfiguration": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "data-source-configuration/data-source-configuration-list/data-source-configuration-list.component.html",
+      "data-source-configuration/data-source-configuration-details/data-source-configuration-details.component.html"
+    ]
+  },
+  "creditreferencedate": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "credit-reference-date/credit-ref-date-list/credit-ref-date-list.component.html",
+      "credit-reference-date/credit-ref-date/credit-ref-date.component.html"
+    ]
+  },
+  "playwright": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "playwright-compose/playwright-compose.component.html",
+      "playwright/playwright.component.html"
+    ]
+  },
+  "importcatalogs": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "import-catalogs/validation-error-dialog/validation-error-dialog.component.html",
+      "import-catalogs/import-recap-dialog/import-recap-dialog.component.html",
+      "import-catalogs/import-catalogs.component.html"
+    ]
+  },
+  "dashboard": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "dashboard/dashboard.component.html"
+    ]
+  },
+  "common": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "common/session-expired-modal/session-expired-modal.component.html",
+      "common/toast/toast.component.html",
+      "common/perimeter-selection/perimeter-selection.component.html",
+      "common/confirmation/confirmation.component.html"
+    ]
+  },
+  "profile": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "profile/profile.component.html"
+    ]
+  },
+  "stockmovements": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "stock-movements/stock-item/stock-item.component.html",
+      "stock-movements/stock-movements-list/stock-movements-list.component.html",
+      "stock-movements/stock-movements-history/stock-movements-history.component.html",
+      "stock-movements/stock-movements-form/stock-movements-form.component.html",
+      "stock-movements/stock-movements-detail/stock-movements-detail.component.html",
+      "stock-movements/stock-movements/stock-movements.component.html"
+    ]
+  },
+  "llmusagetracking": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "llm-usage-tracking/llm-usage-tracking.component.html"
+    ]
+  },
+  "trunks": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "trunks/trunk-form/trunk-form.component.html",
+      "trunks/local-trunk-list/local-trunk-list.component.html",
+      "trunks/trunk-assignment/trunk-assignment.component.html",
+      "trunks/trunk-items-management/trunk-items-bulk-action-dialog/trunk-items-bulk-action-dialog.component.html",
+      "trunks/trunk-items-management/trunk-items-management.component.html",
+      "trunks/trunk-assignment/already-assorted-config-dialog/already-assorted-config-dialog.component.html",
+      "trunks/trunk-help-dialog/trunk-help-dialog.component.html",
+      "trunks/trunk-assignment/non-assorted-config-dialog/non-assorted-config-dialog.component.html",
+      "trunks/trunk-items-management/trunk-items-management-help-dialog/trunk-items-management-help-dialog.component.html",
+      "trunks/trunks-list/trunks-list.component.html",
+      "trunks/trunk-assignment/select-trunk-level-dialog/select-trunk-level-dialog.component.html"
+    ]
+  },
+  "purchase": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "purchase/purchase-details/purchase-details.component.html",
+      "purchase/purchase-list/purchase-list.component.html",
+      "purchase/purchasetraiff/purchasetraiff.component.html",
+      "purchase/purchase-list-item-management/purchase-list-item-management.component.html",
+      "purchase/purchase-import-tariff/purchase-import-tariff.component.html"
+    ]
+  },
+  "aiassistant": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "ai-assistant/ai-assistant.component.html"
+    ]
+  },
+  "salespricerounding": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "sales-price-rounding/sales-price-list/sales-price-list.component.html",
+      "sales-price-rounding/sales-price/sales-price.component.html"
+    ]
+  },
+  "payment_type": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "payment_type/payment-type-list/payment-type-list.component.html",
+      "payment_type/payment-type/payment-type.component.html"
+    ]
+  },
+  "retail_chain": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "retail_chain/retail-chain/retail-chain.component.html",
+      "retail_chain/retail-chain-list/retail-chain-list.component.html"
+    ]
+  },
+  "basereferencedate": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "base-reference-date/base-ref-date-list/base-ref-date-list.component.html",
+      "base-reference-date/base-ref-date/base-ref-date.component.html"
+    ]
+  },
+  "productlist": {
+    "entities": [],
+    "services": [],
+    "ui": [
+      "product-list/product-list.component.html"
+    ]
+  }
+}

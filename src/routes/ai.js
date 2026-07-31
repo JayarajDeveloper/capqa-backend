@@ -21,6 +21,9 @@ import { writePlaywrightSpec, writeApiSpec, saveAndRunPlaywrightSpec, saveAndRun
 import { loadDbTarget, testDbConnection, runDbAutomation } from '../lib/automation/dbRunner.js';
 import { indexRepo, indexActiveRepos, getIndexStatus } from '../lib/rag/indexer.js';
 import { persistTestRun, publicRun } from '../lib/reports/persistRun.js';
+import { extractAllRules, formatAllRules } from '../lib/rag/allRules.js';
+import { readSourceDirect, buildDirectContext } from '../lib/rag/directSource.js';
+import { nlpParseIntent, mergeIntents } from '../lib/rag/nlpIntent.js';
 
 // Mounted at /api. Full paths include /projects/:projectId.
 export const aiRouter = Router();
@@ -392,802 +395,146 @@ aiRouter.post('/projects/:projectId/rag/query', async (req, res) => {
   res.json({ chunks });
 });
 
-// Generate test cases — ONLY from retrieved codebase chunks (no outside invention).
+// Direct-read compose — reads full files from local disk, zero index dependency.
 aiRouter.post('/projects/:projectId/compose', async (req, res) => {
   const { title, description, options } = req.body || {};
   if (!title && !description) return res.status(400).json({ error: 'Provide a title or description' });
 
-  const confirmedFeature = options?.confirmedFeature || options?.confirmFeature || null;
-  const intent = parseIntent(title, description);
-  // AI adopts UI / API / Database from the ask — Database only when explicitly requested
-  const adoptedLanes = resolveComposeLanes({ title, description, intent });
-  const forceLayers = options?.forceLayers === true;
-  const rawLayers = options?.layers;
-  const layers = forceLayers && Array.isArray(rawLayers) && rawLayers.length
-    ? rawLayers.map((l) => String(l).toLowerCase()).filter((l) => ['ui', 'backend', 'database'].includes(l))
-    : adoptedLanes.layers;
+  const { apiKey } = await loadAiCreds(req.project.id);
 
   const agentSteps = [
-    {
-      id: 'intent',
-      status: 'done',
-      label: 'Understood your ask',
-      detail: `Action: ${intent.action}`
-        + `${intent.subjectTerms.length ? ` · Looking for: ${intent.subjectTerms.join(', ')}` : ''}`
-        + `${confirmedFeature ? ` · You picked: ${confirmedFeature}` : ''}`
-        + ` · Lanes: ${adoptedLanes.summary}`,
-    },
-    { id: 'retrieve', status: 'active', label: 'Searching your code index', detail: 'RAG over indexed repos…' },
-    { id: 'ground', status: 'pending', label: 'Match to real code', detail: 'Waiting…' },
-    { id: 'draft', status: 'pending', label: 'Draft plan from code', detail: 'Waiting…' },
-    { id: 'ready', status: 'pending', label: 'Ready', detail: 'Waiting…' },
+    { id: 'intent',   status: 'pending', label: 'Understanding your ask',        detail: '' },
+    { id: 'files',    status: 'pending', label: 'Reading source files',          detail: '' },
+    { id: 'rules',    status: 'pending', label: 'Extracting business rules',     detail: '' },
+    { id: 'generate', status: 'pending', label: 'Generating test cases',         detail: '' },
+    { id: 'ready',    status: 'pending', label: 'Ready',                         detail: '' },
   ];
 
-  const { setting, provider, apiKey, model } = await loadAiCreds(req.project.id);
+  // NLP parse
+  let intent = parseIntent(title, description);
+  const nlpResult = await nlpParseIntent(title, description, { apiKey }).catch(() => null);
+  if (nlpResult) intent = mergeIntents(nlpResult, intent);
 
-  if (!isLlmReady(provider, apiKey)) {
-    agentSteps[1] = { id: 'retrieve', status: 'skipped', label: 'Search code index', detail: 'Waiting for AI key' };
-    agentSteps[2] = { id: 'ground', status: 'skipped', label: 'Match to real code', detail: 'Waiting for AI key' };
-    agentSteps[3] = { id: 'draft', status: 'failed', label: 'AI key required', detail: 'Configure Anthropic in Settings' };
-    agentSteps[4] = { id: 'ready', status: 'skipped', label: 'Not ready', detail: 'Add an LLM API key to generate test cases' };
-    return res.status(422).json({
-      error: LLM_KEY_REQUIRED_MSG,
-      code: 'LLM_KEY_REQUIRED',
-      needsAiKey: true,
-      grounded: false,
-      inventOutsideIndex: false,
-      fromIndex: false,
-      agentSteps,
-      sources: [],
-      cases: [],
-      uiPlan: null,
-      layers,
-      adoptedLanes,
-    });
+  agentSteps[0] = {
+    id: 'intent', status: 'done',
+    label: 'Understood your ask',
+    detail: `${intent.action || 'test'} · ${intent.entities?.join(', ') || intent.subjectTerms?.join(', ') || title}`,
+  };
+
+  // Determine entities from intent — NLP entities > subjectTerms
+  const entities = intent.entities?.length
+    ? intent.entities
+    : (intent.subjectTerms?.length ? intent.subjectTerms : [title].filter(Boolean));
+  if (!entities.length) return res.status(422).json({ error: 'Could not determine which module to test' });
+
+  // Read source files directly from disk
+  const direct = await readSourceDirect(entities);
+  if (direct.errors.length && !direct.entities.length && !direct.ui.length) {
+    return res.status(422).json({ error: direct.errors[0] });
   }
 
-  const query = intent.searchQuery || [title, description].filter(Boolean).join('\n');
-
-  // (intent / agentSteps already set above)
-  let chunks = [];
-  try {
-    chunks = await retrieveChunks({
-      projectId: req.project.id,
-      query: confirmedFeature ? `${confirmedFeature} ${query}` : query,
-      topK: options?.topK || 12,
-      provider,
-      apiKey,
-      baseUrl: env.ANTHROPIC_BASE_URL,
-      layers,
-    });
-  } catch (e) {
-    console.warn('[compose] retrieve failed:', e.message);
-  }
+  const { codeContext, uiContext, apiContext, sources } = buildDirectContext(direct, entities[0]);
 
   agentSteps[1] = {
-    id: 'retrieve',
-    status: 'done',
-    label: 'Searched your code index',
-    detail: chunks.length
-      ? `Found ${chunks.length} chunk${chunks.length === 1 ? '' : 's'} in layer(s): ${layers.join(', ')}`
-      : 'No chunks returned from index',
+    id: 'files', status: 'done',
+    label: 'Read source files from disk',
+    detail: `${direct.entities.length + direct.services.length} PHP · ${direct.ui.length} UI · ${direct.entities.map(e => e.entity).join(', ')}`,
   };
 
-  chunks = chunks.filter((c) => matchesLayers(c.path, layers));
-
-  // 1) Rank ALL indexed features vs ask (not only the few RAG hits)
-  const catalog = await suggestIndexedFeatures(req.project.id, layers, 40, query).catch(() => []);
-  const pick = pickFeatureFromCatalog(query, catalog, { confirmedFeature });
-
-  if (pick.needsClarification || !pick.ok) {
-    agentSteps[2] = {
-      id: 'ground',
-      status: 'failed',
-      label: pick.reason === 'ambiguous' ? 'Need your help — several matches' : 'Need your help — unclear match',
-      detail: pick.note || 'Pick which indexed screen you mean.',
-    };
-    agentSteps[3] = { id: 'draft', status: 'skipped', label: 'Draft paused', detail: 'Waiting for you to pick a feature' };
-    agentSteps[4] = { id: 'ready', status: 'skipped', label: 'Not ready', detail: 'Confirm a feature to continue' };
-
-    return res.status(422).json({
-      error: pick.note
-        || `I’m not sure which screen matches “${intent.subjectTerms.join(' ') || title}”. Please pick one from your index.`,
-      grounded: false,
-      needsClarification: true,
-      inventOutsideIndex: false,
-      fromIndex: false,
-      grounding: pick,
-      intent,
-      suggestions: (pick.candidates || catalog).slice(0, 12).map((c) => ({
-        name: c.name,
-        files: c.files || c.paths?.length || 0,
-        score: c.score,
-        paths: c.paths || [],
-      })),
-      agentSteps,
-      sources: [],
-      cases: [],
-      uiPlan: null,
-      layers,
-    });
-  }
-
-  // 2) Load chunks for the matched feature from the index (reliable for any page)
-  const featureChunks = await loadChunksForFeature(
-    req.project.id,
-    pick.matchedFeature,
-    layers,
-    28,
-    pick.paths || [],
-  ).catch(() => []);
-
-  if (featureChunks.length) {
-    chunks = featureChunks;
-  } else {
-    // Fallback: filter RAG hits to this feature name
-    const focused = filterChunksToAsk(query, chunks, {
-      confirmedFeature,
-      matchedFeature: pick.matchedFeature,
-    });
-    if (focused.length) chunks = focused.slice(0, 28);
-  }
-
-  let grounding = {
-    ...pick,
-    matchedPaths: [...new Set(chunks.map((c) => c.path))].slice(0, 12),
-  };
-
-  if (!chunks.length) {
-    return res.status(422).json({
-      error: `Matched “${pick.matchedFeature}” but no ${layers.join('/')} files were found for it. Try another layer or re-index.`,
-      grounded: false,
-      needsClarification: true,
-      suggestions: catalog.slice(0, 12),
-      grounding,
-      intent,
-      agentSteps,
-      cases: [],
-      uiPlan: null,
-      layers,
-    });
-  }
+  // Extract ALL business rules from entity + service files (unified)
+  const allRules = extractAllRules(direct);
+  const businessRules = formatAllRules(allRules, entities[0]);
 
   agentSteps[2] = {
-    id: 'ground',
-    status: 'done',
-    label: 'Matched your ask to code',
-    detail: `${grounding.matchedFeature} · confidence ${(grounding.confidence * 100).toFixed(0)}%`,
-  };
-  const useLocal = isLocalSourceConfigured();
-  agentSteps[3] = {
-    id: 'draft',
-    status: 'active',
-    label: useLocal ? 'Reading local CapBO folders' : 'Refreshing files from GitLab',
-    detail: useLocal
-      ? `Local disk for ${grounding.matchedFeature}…`
-      : `Live fetch for ${grounding.matchedFeature}…`,
+    id: 'rules', status: 'done',
+    label: 'Extracted business rules',
+    detail: `${allRules.summary.total} rules (${allRules.summary.required} required · ${allRules.summary.guards} guards · ${allRules.summary.permissions} permissions)`,
   };
 
-  // Strict: no live source (local disk or GitLab) → no test plan at all (UI or API)
-  const wantsUiLayer = !layers.length || layers.includes('ui');
-  const requireLive = REQUIRE_LIVE_FOR_UI;
-  let liveMeta = { ok: false, fetched: 0, discovered: 0, reason: null };
-  let liveChunksOnly = [];
-  const tHydrate = Date.now();
-  const hydrateMs = Number(process.env.GITLAB_HYDRATE_BUDGET_MS || 45000);
-  const seedPaths = [...(pick.paths || []), ...chunks.map((c) => c.path)];
+  // Generate
+  agentSteps[3] = { id: 'generate', status: 'active', label: 'Generating test cases', detail: 'DeepSeek drafting…' };
+  const result = await generateComposeArtifacts({
+    provider: 'deepseek',
+    apiKey,
+    model: env.DEEPSEEK_MODEL,
+    title, description,
+    options: { codeOnly: options?.codeOnly === true, layers: ['ui', 'backend'] },
+    codeContext, uiContext, apiContext,
+    matchedFeature: entities[0],
+    intent,
+    businessRules,
+  });
 
-  async function runLiveHydrate() {
-    const hydratePromise = hydrateChunksForCompose({
-      projectId: req.project.id,
-      chunks,
-      featureName: grounding.matchedFeature,
-      query,
-      layers,
-    });
-    // Local disk is fast — no GitLab-style timeout race needed
-    if (isLocalSourceConfigured()) return hydratePromise;
-    return Promise.race([
-      hydratePromise,
-      new Promise((resolve) => setTimeout(() => resolve({
-        chunks,
-        liveChunks: [],
-        live: { ok: false, reason: 'gitlab_unreachable_timeout', fetched: 0, discovered: 0 },
-      }), Math.max(hydrateMs + 5000, 20000))),
-    ]);
-  }
+  // Frontend expects { ui, api, db } — not the flat uiAutomation object
+  const automation = buildAutomationBundle({
+    layers: ['ui', 'backend'],
+    uiPlan: result.uiPlan,
+    uiContext,
+    apiContext,
+    cases: result.cases,
+    matchedFeature: entities[0],
+    intent: result.intent || intent,
+    uiAutomation: result.uiAutomation,
+  });
 
-  try {
-    let live = await runLiveHydrate();
-    const retryable = new Set([
-      'gitlab_unreachable',
-      'gitlab_unreachable_timeout',
-      'gitlab_fetch_failed',
-      'nothing_fetched',
-      'local_root_missing',
-    ]);
-    if (requireLive && retryable.has(live.live?.reason) && !isLocalSourceConfigured()) {
-      console.log(`[compose] live GitLab retry (${live.live?.reason})…`);
-      await new Promise((r) => setTimeout(r, 1000));
-      live = await runLiveHydrate();
-    }
-    chunks = live.chunks;
-    liveChunksOnly = live.liveChunks || filterLiveGitlabChunks(live.chunks);
-    liveMeta = live.live || liveMeta;
-    liveChunksOnly = filterChunksToFeatureFolder(liveChunksOnly, grounding.matchedFeature, seedPaths);
-    const src = liveMeta.source === 'local' || isLocalSourceConfigured() ? 'local' : 'GitLab';
-    console.log(`[compose] live ${src} hydrate ${Date.now() - tHydrate}ms · fetched=${liveMeta.fetched || 0} · ok=${!!liveMeta.ok} · folder=${resolvedFeatureFolder(grounding.matchedFeature, seedPaths)}`);
-    grounding = {
-      ...grounding,
-      matchedPaths: [...new Set((liveChunksOnly.length ? liveChunksOnly : chunks).map((c) => c.path))].slice(0, 12),
-      liveGitLab: liveMeta,
-      liveSource: src,
-    };
-  } catch (e) {
-    console.warn('[compose] live hydrate failed:', e.message, `(${Date.now() - tHydrate}ms)`);
-    liveMeta = { ok: false, reason: e.message, fetched: 0, discovered: 0 };
-    liveChunksOnly = [];
-  }
-
-  const refuseNoLivePlan = (reason, detail) => {
-    const local = isLocalSourceConfigured();
-    agentSteps[3] = {
-      id: 'draft',
-      status: 'error',
-      label: local ? 'No local CapBO code — test plan not created' : 'No live GitLab — test plan not created',
-      detail: detail || reason,
-    };
-    agentSteps[4] = {
-      id: 'ready',
-      status: 'error',
-      label: 'Blocked',
-      detail: local
-        ? 'Check CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT paths, then compose again'
-        : 'Connect GitLab and ensure live fetch works, then compose again',
-    };
-    return res.status(503).json({
-      error: local
-        ? 'No local CapBO code available — test plan was not created.'
-        : 'No live GitLab code available — test plan was not created.',
-      code: 'LIVE_GITLAB_REQUIRED',
-      reason,
-      liveGitLab: liveMeta,
-      hint: local
-        ? 'Set CAPQA_LOCAL_UI_ROOT and CAPQA_LOCAL_API_ROOT to your CapBO frontend/backend repo roots.'
-        : 'Add an active GitLab repo connector, or set CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT for local disk.',
-      detail: detail || ({
-        no_active_gitlab_repo: 'No active GitLab repo connected to this project',
-        gitlab_unreachable: 'GitLab is unreachable (VPN / network)',
-        gitlab_unreachable_timeout: 'GitLab live fetch timed out',
-        gitlab_fetch_failed: 'GitLab file fetch failed',
-        nothing_fetched: 'Live fetch returned no files',
-        local_not_configured: 'CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT not set',
-        local_root_missing: 'A configured local CapBO root path does not exist',
-        live_ui_incomplete: 'Live UI files missing testIds or form rules',
-      })[reason] || reason,
-      cases: [],
-      uiPlan: null,
-      automation: null,
-      specFile: null,
-      agentSteps,
-      grounded: true,
-      fromIndex: true,
-      fromLiveGitLab: false,
-      fromLocalDisk: local,
-      inventOutsideIndex: false,
-    });
-  };
-
-  if (requireLive) {
-    if (!liveMeta.ok || !liveChunksOnly.length) {
-      const reason = liveMeta.reason || 'no_live_files';
-      const detail = ({
-        no_active_gitlab_repo: 'No active GitLab repo connected to this project',
-        gitlab_unreachable: 'GitLab is unreachable',
-        gitlab_unreachable_timeout: 'GitLab live fetch timed out',
-        gitlab_fetch_failed: 'GitLab file fetch failed',
-        nothing_fetched: 'Live fetch returned no files',
-        local_not_configured: 'CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT not set',
-        local_root_missing: liveMeta.detail || 'Local CapBO root missing',
-      })[reason] || reason;
-      return refuseNoLivePlan(reason, detail);
-    }
-
-    const wantsUi = wantsUiLayer;
-    if (wantsUi) {
-      let ready = liveUiSourcesReady(liveChunksOnly);
-      if (!ready.ok && !ready.hasTestId) {
-        console.log('[compose] live UI missing testIds — mandatory UI supplement…');
-        const sup = await supplementLiveUiForCompose({
-          projectId: req.project.id,
-          featureName: grounding.matchedFeature,
-          liveChunks: liveChunksOnly,
-          seedChunks: chunks,
-        });
-        if (sup.added.length) {
-          liveChunksOnly = filterChunksToFeatureFolder(
-            sup.liveChunks,
-            grounding.matchedFeature,
-            seedPaths,
-          );
-          liveMeta = { ...liveMeta, fetched: (liveMeta.fetched || 0) + sup.added.length };
-          ready = liveUiSourcesReady(liveChunksOnly);
-        }
-      }
-      if (!ready.ok && !isLocalSourceConfigured()) {
-        console.log('[compose] live UI still incomplete — full live hydrate retry…');
-        await new Promise((r) => setTimeout(r, 1000));
-        const retryLive = await runLiveHydrate();
-        liveChunksOnly = filterChunksToFeatureFolder(
-          retryLive.liveChunks || filterLiveGitlabChunks(retryLive.chunks),
-          grounding.matchedFeature,
-          seedPaths,
-        );
-        liveMeta = retryLive.live || liveMeta;
-        ready = liveUiSourcesReady(liveChunksOnly);
-      }
-      if (!ready.ok) {
-        const pathHint = ready.paths?.length ? ` · paths: ${ready.paths.slice(0, 4).join(', ')}` : '';
-        return refuseNoLivePlan(
-          'live_ui_incomplete',
-          !ready.hasTestId
-            ? `Live files have no data-testid / testId${pathHint}`
-            : !ready.hasRules
-              ? `Live files have no FormGroup / Validators${pathHint}`
-              : `Live UI HTML/TS incomplete for testIds & business rules${pathHint}`,
-        );
-      }
-    }
-
-    // Draft only from live bodies — never index junk
-    chunks = liveChunksOnly;
-  }
-
-  chunks = prioritizeFeatureChunks(chunks, { maxTotal: 36, maxList: 6 });
-
-  const featureFolder = primaryFeatureFolder(chunks, grounding.matchedFeature);
-  if (featureFolder) {
-    chunks = chunks.filter(
-      (c) => !String(c.path).includes('/pages/') || pathInFeatureFolder(c.path, featureFolder),
-    );
-  }
-
-  agentSteps[3] = {
-    id: 'draft',
-    status: 'active',
-    label: isLocalSourceConfigured()
-      ? 'Drafting from local CapBO files'
-      : 'Drafting from live GitLab files',
-    detail: `Live · ${liveMeta.fetched} refreshed` +
-      (liveMeta.discovered ? ` · ${liveMeta.discovered} discovered` : '') +
-      (liveMeta.branch ? ` · ${liveMeta.branch}` : ''),
-  };
-
-  // No index expand — live source only (local or GitLab)
-  chunks = filterLiveGitlabChunks(chunks);
-
-  const uiChunks = prioritizeFeatureChunks(
-    chunks.filter((c) => layerOf(c.path) === 'ui'),
-    { maxTotal: 28, maxList: 4 },
-  );
-  const apiChunks = chunks.filter((c) => {
-    const l = layerOf(c.path);
-    return l === 'backend' || l === 'database';
-  }).slice(0, 24);
-  const codeContext = formatChunksForPrompt(prioritizeFeatureChunks(chunks, { maxTotal: 32, maxList: 5 }));
-  const uiContext = uiChunks.length ? formatChunksForPrompt(uiChunks) : '';
-  const apiContext = apiChunks.length ? formatChunksForPrompt(apiChunks) : '';
-
-  if (requireLive && wantsUiLayer && !uiContext.trim()) {
-    return refuseNoLivePlan(
-      'LIVE_GITLAB_EMPTY_UI',
-      isLocalSourceConfigured()
-        ? 'Local CapBO trees returned no UI file bodies for this feature'
-        : 'Live GitLab returned no UI file bodies for this feature',
-    );
-  }
-
-  try {
-    const { cases, uiPlan, intent: enrichedIntent, uiAutomation, capabilities, capabilitiesWarning, composeAdvice, composeSuggestions } = await generateComposeArtifacts({
-      provider,
-      apiKey,
-      model: setting?.model || model,
-      title,
-      description,
-      options: { ...options, codeOnly: true, layers },
-      codeContext,
-      uiContext,
-      apiContext,
-      matchedFeature: grounding.matchedFeature,
-      intent,
-    });
-
-    const automation = buildAutomationBundle({
-      layers,
-      uiPlan,
-      uiContext,
-      apiContext,
-      cases,
-      matchedFeature: grounding.matchedFeature,
-      intent: enrichedIntent || intent,
-      uiAutomation,
-    });
-
-    let specFile = null;
-    let apiSpecFile = null;
-    if (automation.ui?.steps?.length) {
+  // Write spec file during compose — ready to run immediately
+  let specFile = result.specFile || null;
+  if (automation?.ui?.steps?.length) {
+    try {
       const written = await writePlaywrightSpec(automation.ui, {
-        title: uiPlan?.title || title,
-        matchedFeature: grounding.matchedFeature,
-        action: automation.ui.action || enrichedIntent?.action,
+        title: result.uiPlan?.title || title,
+        stableName: entities[0],
+        matchedFeature: entities[0],
       });
-      automation.ui = {
-        ...automation.ui,
-        playwrightSource: written.source,
-        specFile: written.relativePath,
-        filePath: written.filePath,
-        fileName: written.fileName,
-      };
       specFile = written.relativePath;
+      if (automation.ui) automation.ui.specFile = written.relativePath;
+    } catch (e) {
+      console.warn('[compose] spec write failed:', e.message);
     }
-    if (automation.api?.steps?.length) {
-      const writtenApi = await writeApiSpec(automation.api, {
-        title: uiPlan?.title || title,
-        matchedFeature: grounding.matchedFeature,
-        action: automation.api.action || enrichedIntent?.action,
-      });
-      automation.api = {
-        ...automation.api,
-        playwrightSource: writtenApi.source,
-        specFile: writtenApi.relativePath,
-        filePath: writtenApi.filePath,
-        fileName: writtenApi.fileName,
-      };
-      apiSpecFile = writtenApi.relativePath;
-    }
-    const hasDbSteps = !!(automation.db?.steps?.length);
-    if (!specFile && !apiSpecFile && !hasDbSteps) {
-      if (layers.includes('ui') || !layers.length) {
-        throw new Error('Compose produced no UI steps — cannot write Playwright spec');
-      }
-      if (layers.includes('backend')) {
-        throw new Error('Compose produced no API steps — index Backend controllers/OpenAPI and try again');
-      }
-      throw new Error('Compose produced no Database steps — ensure ask has a code/name and Entity is matched');
-    }
-
-    const draftedFrom = isLocalSourceConfigured() ? 'local CapBO' : 'live GitLab';
-    agentSteps[3] = {
-      id: 'draft',
-      status: 'done',
-      label: [
-        specFile && 'UI',
-        apiSpecFile && 'API',
-        hasDbSteps && 'Database',
-      ].filter(Boolean).join(' + ')
-        ? `Drafted ${[specFile && 'UI', apiSpecFile && 'API', hasDbSteps && 'Database'].filter(Boolean).join(' + ')} from ${draftedFrom}`
-        : `Drafted from ${draftedFrom}`,
-      detail: uiPlan
-        ? `Live plan · ${uiPlan.steps?.length || 0} steps · ${[specFile, apiSpecFile, hasDbSteps && 'sql'].filter(Boolean).join(' · ') || 'no spec'}`
-        : `${cases.length} case${cases.length === 1 ? '' : 's'}`,
-    };
-    agentSteps[4] = {
-      id: 'ready',
-      status: 'done',
-      label: automation.ui
-        ? 'Ready to run Playwright spec'
-        : automation.api
-          ? 'Ready to run API'
-          : hasDbSteps
-            ? 'Ready to run Database SQL'
-            : 'Review plan, then Run',
-      detail: automation.ui
-        ? `npx playwright test ${specFile} · ${automation.ui.steps.length} steps · ${automation.ui.route || ''}`
-        : automation.api
-          ? `API · ${automation.api.steps.length} HTTP step(s) · ${apiSpecFile}`
-          : hasDbSteps
-            ? `SQL · ${automation.db.steps.length} assert(s) · ${automation.db.table || 'table'}`
-            : 'Review plan, then Run',
-    };
-
-    const testTarget = await loadTestTarget(req.project.id);
-    const dbTarget = await loadDbTarget(req.project.id, prisma);
-
-    res.json({
-      provider,
-      cases,
-      uiPlan: uiPlan || null,
-      automation,
-      specFile,
-      apiSpecFile,
-      defaultRunAs: (() => {
-        const prefer = adoptedLanes.defaultRunAs;
-        if (prefer === 'database' && hasDbSteps) return 'database';
-        if (prefer === 'api' && automation.api?.steps?.length) return 'api';
-        if (prefer === 'ui' && automation.ui?.steps?.length) return 'ui';
-        if (automation.ui?.steps?.length) return 'ui';
-        if (automation.api?.steps?.length) return 'api';
-        if (hasDbSteps) return 'database';
-        return 'ui';
-      })(),
-      adoptedLanes,
-      runTarget: {
-        appUrl: testTarget.appUrl || null,
-        apiUrl: env.TARGET_API_URL || testTarget.appUrl || null,
-        hasLogin: !!(testTarget.email && testTarget.password),
-        hasDatabase: !!dbTarget.config,
-      },
-      layers,
-      intent: enrichedIntent || intent,
-      agentSteps,
-      grounding: {
-        ...grounding,
-        capabilities,
-        capabilitiesWarning,
-        composeAdvice: composeAdvice || [],
-        composeSuggestions: composeSuggestions || [],
-        note: capabilitiesWarning
-          ? `${capabilitiesWarning} ${liveMeta.ok
-            ? (liveMeta.source === 'local' || isLocalSourceConfigured() ? 'Plan built from local CapBO.' : 'Plan built from live GitLab.')
-            : (grounding.note || 'Plan built from indexed code.')}`
-          : (liveMeta.ok
-            ? (liveMeta.source === 'local' || isLocalSourceConfigured()
-              ? 'Plan built from local CapBO file contents (matched via index). Application words come from sources, not invented.'
-              : 'Plan built from live GitLab file contents (matched via index). Application words come from sources, not invented.')
-            : (grounding.note || 'Plan built only from indexed code. Application words come from sources, not invented.')),
-      },
-      liveGitLab: liveMeta,
-      sources: chunks.slice(0, 28).map((c) => ({
-        repo: c.repoName,
-        path: c.path,
-        lines: `${c.startLine}-${c.endLine}`,
-        score: c.score,
-        method: c.method,
-        layer: c.layer || layerOf(c.path),
-        branch: c.branch || null,
-      })),
-      grounded: true,
-      fromIndex: true,
-      fromLiveGitLab: !!liveMeta.ok && liveMeta.source !== 'local',
-      fromLocalDisk: liveMeta.source === 'local' || isLocalSourceConfigured(),
-      inventOutsideIndex: false,
-      composeAdvice: composeAdvice || [],
-      composeSuggestions: composeSuggestions || [],
-      codeOnly: true,
-    });
-  } catch (e) {
-    const status = e.code === 'LLM_KEY_REQUIRED' || e.code === 'CODE_TESTIDS_REQUIRED' || e.code === 'COMPOSE_NOT_FEASIBLE'
-      ? 422
-      : 502;
-    if (e.code === 'CODE_TESTIDS_REQUIRED') {
-      agentSteps[3] = {
-        id: 'draft',
-        status: 'error',
-        label: 'Missing CapBO testIds — plan not created',
-        detail: (e.missing || []).map((m) => m.message).slice(0, 4).join(' · ') || e.message,
-      };
-      agentSteps[4] = {
-        id: 'ready',
-        status: 'error',
-        label: 'Blocked',
-        detail: 'Add data-testid / testId on CapBO form controls, then compose again',
-      };
-    }
-    if (e.code === 'COMPOSE_NOT_FEASIBLE') {
-      agentSteps[3] = {
-        id: 'draft',
-        status: 'error',
-        label: 'Scenario not supported by indexed UI',
-        detail: (e.advice || []).slice(0, 2).join(' · ') || e.message,
-      };
-      agentSteps[4] = {
-        id: 'ready',
-        status: 'error',
-        label: 'Pick a suggested alternative',
-        detail: 'Your ask conflicts with CapBO code — choose a supported flow below',
-      };
-    }
-    res.status(status).json({
-      error: e.message || 'Generation failed',
-      code: e.code || null,
-      missing: e.missing || null,
-      advice: e.advice || null,
-      composeSuggestions: e.suggestions || null,
-      capabilities: e.capabilities || null,
-      needsAiKey: e.code === 'LLM_KEY_REQUIRED',
-      needsClarification: e.code === 'COMPOSE_NOT_FEASIBLE',
-      suggestions: e.suggestions || null,
-      agentSteps,
-      inventOutsideIndex: false,
-      cases: [],
-      uiPlan: null,
-      automation: null,
-      specFile: null,
-    });
   }
+
+  agentSteps[3] = { id: 'generate', status: 'done', label: 'Generated test cases', detail: `${(result.cases || []).length} cases · ${specFile || 'no spec'}` };
+  agentSteps[4] = { id: 'ready', status: 'done', label: 'Ready', detail: options?.codeOnly ? 'Test plan ready' : 'Spec ready to run' };
+
+  // Strip spec file from manual test plan (codeOnly mode)
+  const stripped = options?.codeOnly
+    ? { cases: result.cases, uiPlan: result.uiPlan, intent: result.intent, capabilities: result.capabilities }
+    : result;
+
+  res.json({
+    ...stripped,
+    automation,
+    specFile,
+    codeOnly: !!options?.codeOnly,
+    fromDirectRead: true,
+    sources,
+    entities,
+    agentSteps,
+  });
 });
 
-// Execute via generated Playwright *.spec.ts (UI browser, API, or Database SQL).
+
+// Run Playwright spec from generated-e2e/
 aiRouter.post('/projects/:projectId/run-tests', async (req, res) => {
-  const { automation, kind, options } = req.body || {};
-  const payload = automation
-    || (kind === 'api' ? req.body?.api : kind === 'database' ? req.body?.db : req.body?.ui)
-    || null;
-  if (!payload) {
-    return res.status(400).json({ error: 'Provide automation payload from compose (automation.ui, .api, or .db)' });
-  }
-
-  const target = await loadTestTarget(req.project.id);
-  const baseUrl = (options?.baseUrl || target.appUrl || '').replace(/\/+$/, '');
-  const runStartedAt = Date.now();
-  const reportMeta = {
-    askTitle: options?.askTitle || null,
-    acceptanceCriteria: options?.acceptanceCriteria || null,
-    feature: payload.feature || options?.feature || null,
-  };
-
-  // Database · SQL — read-only SELECT asserts against CapBO Postgres
-  if (payload.kind === 'database' || payload.engine === 'sql' || kind === 'database') {
-    if (!payload?.steps?.length) {
-      return res.status(400).json({ error: 'No Database steps to run' });
-    }
-    try {
-      const { config } = await loadDbTarget(req.project.id, prisma);
-      if (!config) {
-        return res.status(400).json({
-          error: 'Database not configured — open Settings → Target database (or set TARGET_DATABASE_URL)',
-          skipped: true,
-        });
-      }
-      const result = await runDbAutomation(payload, config);
-      const withReport = await attachSavedReport(req.project.id, result, options || {}, {
-        kind: 'database',
-        collectArtifacts: false,
-        runStartedAt,
-        ...reportMeta,
-        label: options?.label || `Database · ${payload.feature || payload.table || 'schema'}`,
-      });
-      return res.json({
-        ...withReport,
-        targetConfigured: true,
-      });
-    } catch (e) {
-      return res.status(500).json({ error: String(e.message || e) });
-    }
-  }
-
-  // API HTTP cases — Playwright request context
-  if (payload.kind === 'api' || payload.engine === 'http') {
-    if (!payload?.steps?.length) {
-      return res.status(400).json({ error: 'No API steps to run' });
-    }
-    try {
-      const result = await saveAndRunApiSpec(payload, {
-        baseUrl,
-        apiBaseUrl: options?.apiBaseUrl || env.TARGET_API_URL || '',
-        email: options?.email || target.email || '',
-        password: options?.password || target.password || '',
-        runMode: options?.runMode || 'background',
-        timeoutMs: options?.timeoutMs || 120000,
-        title: payload.title || payload.feature,
-        matchedFeature: payload.feature,
-        action: payload.action,
-      });
-      const packed = {
-        ...result,
-        engine: 'playwright-api',
-        kind: 'api',
-        headless: true,
-        runMode: options?.runMode || 'background',
-        targetConfigured: !!(env.TARGET_API_URL || baseUrl),
-      };
-      const withReport = await attachSavedReport(req.project.id, packed, options || {}, {
-        kind: 'api',
-        collectArtifacts: true,
-        runStartedAt,
-        ...reportMeta,
-        label: options?.label || `API · ${payload.feature || 'run'}`,
-      });
-      return res.json(withReport);
-    } catch (e) {
-      return res.status(500).json({ error: String(e.message || e) });
-    }
+  const { specFile, automation } = req.body || {};
+  const payload = automation?.ui || automation;
+  if (!payload?.steps?.length && !specFile) {
+    return res.status(400).json({ error: 'No automation steps or spec file provided' });
   }
 
   try {
-    let runnable = payload;
-    if (payload?.steps) {
-      const beforeSteps = JSON.stringify(payload.steps || []);
-      const before = (payload.steps || []).filter((s) => s.action === 'fill' || s.action === 'select').length;
-      runnable = ensureAutomationHasFillSteps(payload, {
-        matchedFeature: payload.feature,
-        intent: { action: payload.action, testData: payload.data },
-      }) || payload;
-      const after = (runnable.steps || []).filter((s) => s.action === 'fill' || s.action === 'select').length;
-      const changed = beforeSteps !== JSON.stringify(runnable.steps || []);
-      if (changed) {
-        runnable = {
-          ...runnable,
-          _planRefreshed: true,
-          _planFillCount: { before, after },
-        };
-      }
-    }
-
-    if (!runnable?.steps?.length) {
-      return res.status(400).json({ error: 'No UI steps to write into a Playwright spec' });
-    }
-
-    const runOpts = {
-      baseUrl,
-      email: options?.email || target.email || '',
-      password: options?.password || target.password || '',
-      headless: options?.headless === true,
-      runMode: options?.runMode || (options?.headless ? 'background' : 'foreground'),
-      timeoutMs: options?.timeoutMs || 180000,
-      title: runnable.title || payload.title,
-      matchedFeature: runnable.feature,
-      action: runnable.action,
-      recordVideo: options?.recordVideo
-        || (options?.runMode === 'foreground' || options?.headless === false ? 'on' : 'retain-on-failure'),
-    };
-
-    const resultMeta = {
-      engine: 'playwright-cli',
-      headless: options?.headless === true,
-      runMode: runOpts.runMode,
-      targetConfigured: !!baseUrl,
-      planRefreshed: !!runnable._planRefreshed,
-      planFillCount: runnable._planFillCount || null,
-      kind: 'ui',
-    };
-
-    if (options?.streamSteps) {
-      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-      res.setHeader('X-Accel-Buffering', 'no');
-      if (typeof res.flushHeaders === 'function') res.flushHeaders();
-
-      const writeEvt = (evt) => {
-        try {
-          res.write(`${JSON.stringify(evt)}\n`);
-        } catch {
-          /* client disconnected */
-        }
-      };
-
-      const result = await saveAndRunPlaywrightSpec(runnable, {
-        ...runOpts,
-        onProgress: (evt) => writeEvt(evt),
-      });
-
-      const withReport = await attachSavedReport(req.project.id, { ...result, ...resultMeta }, options || {}, {
-        kind: 'ui',
-        collectArtifacts: true,
-        runStartedAt,
-        ...reportMeta,
-        label: options?.label || `UI · ${runnable.feature || 'run'}`,
-      });
-      writeEvt({ type: 'done', result: withReport });
-      return res.end();
-    }
-
-    const result = await saveAndRunPlaywrightSpec(runnable, runOpts);
-    const withReport = await attachSavedReport(req.project.id, { ...result, ...resultMeta }, options || {}, {
-      kind: 'ui',
-      collectArtifacts: true,
-      runStartedAt,
-      ...reportMeta,
-      label: options?.label || `UI · ${runnable.feature || 'run'}`,
+    const result = await saveAndRunPlaywrightSpec(payload, {
+      specFile,
+      title: payload?.title,
+      matchedFeature: payload?.matchedFeature,
     });
-
-    res.json(withReport);
+    res.json(result);
   } catch (e) {
-    res.status(500).json({ error: e.message || 'Playwright spec run failed', passed: false });
+    res.status(500).json({ error: e.message || 'Run failed' });
   }
 });
 
-// Save Playwright spec to nocta-backend/generated-e2e/ (does not run).
+// Save Playwright spec to capqa-backend/generated-e2e/ (does not run).
 aiRouter.post('/projects/:projectId/save-spec', async (req, res) => {
   const { automation, title, stableName, matchedFeature } = req.body || {};
   const payload = automation?.ui || automation;

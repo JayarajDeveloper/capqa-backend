@@ -98,11 +98,10 @@ CRITICAL — GRANULARITY:
 - Never group "fill the form" — always "Enter code", "Enter name", "Select type".
 
 CRITICAL — NAVIGATION:
-- Use ONLY routes from CAPBO NAVIGATION section in prompt.
-- /partners = list page. Add opens create form.
-- /articles = list page. Add opens dialog with tabs (General | Partners | Stock | Documents). Save keeps dialog open.
-- ArticlePartner = accessed from article dialog -> Partners tab -> click Add.
-- Never invent routes like /article-partners, /partners/create.
+- Use ONLY routes from the CAPBO NAVIGATION section in the prompt (runtime-discovered).
+- Routes follow /{module-plural} convention (e.g. /partners, /articles).
+- Child/junction entities (ArticlePartner, PartnerHierarchy) are accessed via parent dialogs — they have no standalone route.
+- Never invent routes — use what the prompt provides.
 
 CRITICAL — CROSS-MODULE:
 - DEPENDENCY CHAIN = generate ALL phases with individual goto/fill/save steps.

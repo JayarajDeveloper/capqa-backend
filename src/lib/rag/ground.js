@@ -127,78 +127,23 @@ export function combineAsk(title, description) {
   return `${t}. ${d}`;
 }
 
-/** Score action verbs across free-form text — no fixed title/description roles. */
-function scoreActions(text) {
-  const s = String(text || '').toLowerCase();
-  const scores = { create: 0, update: 0, delete: 0, list: 0, view: 0, exercise: 0 };
-
-  const bump = (re, key, w = 1) => {
-    const n = (s.match(re) || []).length;
-    if (n) scores[key] += n * w;
-  };
-
-  bump(/\b(create|add|new|register|insert|make a|make an)\b/g, 'create', 2);
-  bump(/\b(update|edit|modify|rename)\b/g, 'update', 2);
-  bump(/\b(change)\b/g, 'update', 1);
-  bump(/\b(delete|remove|archive|destroy)\b/g, 'delete', 2);
-  bump(/\b(list|search|filter|browse|view all|find all)\b/g, 'list', 2);
-  if (/\bview\b/.test(s) && !/\bview all\b/.test(s)) bump(/\bview\b/g, 'view', 2);
-  bump(/\b(verify|check|test|validate|ensure)\b/g, 'exercise', 1);
-
-  // "open existing row" / "edit existing" → update, not list
-  if (/\b(existing|already saved|saved)\b/.test(s) && /\b(edit|update|change|modify|open)\b/.test(s)) {
-    scores.update += 4;
-  }
-  // Bare open/show only when clearly about browsing a list
-  if (/\b(open|show|display)\b/.test(s) && /\b(list|all records|all items|page)\b/.test(s)) {
-    scores.list += 2;
-  }
-
-  return scores;
-}
-
 /**
- * Parse free-form ask (title + description are both optional; either or both).
+ * Parse free-form ask — extract subject terms only for RAG search.
+ * Action/entity detection is now handled entirely by nlpParseIntent().
+ * This function provides the minimal fallback: subject terms for code indexing.
  */
 export function parseIntent(title, description) {
   const rawTitle = String(title || '').trim();
   const rawDescription = String(description || '').trim();
   const combinedAsk = combineAsk(rawTitle, rawDescription);
-  const text = combinedAsk.toLowerCase();
-
-  const scores = scoreActions(text);
-  let action = 'exercise';
-  let best = 0;
-  for (const [k, v] of Object.entries(scores)) {
-    if (k === 'exercise') continue;
-    if (v > best) {
-      best = v;
-      action = k;
-    }
-  }
-  // Tie-break: create wins over update when both mentioned (common: "create then verify")
-  if (scores.create > 0 && scores.update > 0 && scores.create >= scores.update) {
-    action = 'create';
-  }
-  // Tie-break: delete wins over update when both mentioned (detail-edit delete flows mention "Edit")
-  if (scores.delete > 0 && scores.update > 0 && scores.delete >= scores.update) {
-    action = 'delete';
-  }
-  // No verb at all — leave as exercise; codegen infers from indexed code (createRetailChain, etc.)
-
-  const notes = [];
-  if (/\b(required|mandatory|empty|blank|missing|min\s*length|validation)\b/.test(text)) notes.push('validation');
-  if (/\b(duplicate|unique|already exists|same name)\b/.test(text)) notes.push('uniqueness');
-  if (/\b(permission|role|access|denied|unauthorized|forbidden)\b/.test(text)) notes.push('permission');
-  if (/\b(save|submit|confirm)\b/.test(text)) notes.push('submit');
 
   const { base: subjectTerms, all: expanded } = expandAskTerms(combinedAsk);
   const summary = combinedAsk.slice(0, 120) || 'Untitled ask';
 
   return {
-    action,
-    actionScores: scores,
-    notes,
+    action: 'exercise', // NLP overrides this
+    actionScores: { exercise: 1 },
+    notes: [],
     subjectTerms,
     expandedTerms: expanded,
     summary,

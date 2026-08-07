@@ -207,13 +207,6 @@ export async function buildLiveSystemReport() {
          ORDER BY table_name`
       );
       lines.push(`  Tables: ${tables.rows.length} found`);
-      
-      // Row counts for key tables
-      const keyTables = ['partner', 'article', 'article_partner', 'currency', 'vat'];
-      for (const t of keyTables) {
-        const cnt = await countRows(t);
-        if (cnt >= 0) lines.push(`    ${t}: ${cnt} rows`);
-      }
     } catch (e) {
       lines.push(`  Database: ❌ ${e.message}`);
     }

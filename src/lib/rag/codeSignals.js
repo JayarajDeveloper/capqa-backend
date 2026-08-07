@@ -36,24 +36,34 @@ export function featureSlugFromName(featureName) {
     .replace(/^-|-$/g, '');
 }
 
-/** Map feature names to correct CapBO routes. Junction/child modules route through parents. */
-const ROUTE_CORRECTIONS = {
-  'articlepartner': '/articles',       // ArticlePartner → accessed via article dialog
-  'article-partner': '/articles',
-  'partnerhierarchy': '/partners',     // PartnerHierarchy → accessed via partner form
-  'partner-hierarchy': '/partners',
-  'articlehierarchy': '/articles',
-  'article-hierarchy': '/articles',
-  'ean': '/articles',
-  'articleretailchain': '/articles',
-  'assortmenttrunk': '/assortments',
-  'trunklevel': '/assortments',
-  'attributeassortmenttrunk': '/assortments',
-};
-
-export function resolveCorrectRoute(featureName) {
+/**
+ * Resolve the correct CapBO route for an entity.
+ *
+ * Strategy:
+ *  1. If the entity has its own UI folder → /{folder-slug}
+ *  2. If the entity is a child/junction (no standalone UI) — infer parent
+ *     from dependency graph targetEntity relationships
+ *
+ * No hardcoded route map — everything discovered at runtime.
+ */
+export function resolveCorrectRoute(featureName, { dependencyGraph = null } = {}) {
   const slug = featureSlugFromName(featureName);
-  return ROUTE_CORRECTIONS[slug] || `/${slug}`;
+
+  // If a dependency graph is available, check if this entity is a child
+  // that routes through a parent (junction tables, hierarchy children)
+  if (dependencyGraph && dependencyGraph instanceof Map && dependencyGraph.size > 0) {
+    const node = dependencyGraph.get(featureName);
+    if (node && node.dependsOn && node.dependsOn.length > 0) {
+      // For child entities: route through the first non-translation parent
+      for (const parent of node.dependsOn) {
+        if (parent.endsWith('Translation')) continue;
+        const parentSlug = featureSlugFromName(parent);
+        if (parentSlug && parentSlug !== slug) return `/${parentSlug}`;
+      }
+    }
+  }
+
+  return `/${slug}`;
 }
 
 /** Dominant pages/ folder from matched chunks (eco-tax vs article-eco-tax). */

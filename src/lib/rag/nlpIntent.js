@@ -24,15 +24,11 @@ Return ONLY valid JSON — no explanation, no markdown:
   "confidence": 0.0-1.0
 }
 
-EXAMPLES:
-- "creat a parnter" → action:"create", entities:["Partner"], primaryEntity:"Partner"
-- "hook up supplier to article" → action:"link", entities:["Partner","Article","ArticlePartner"], primaryEntity:"ArticlePartner", crossModule:true
-- "créer un partenaire fournisseur TestCorp" → action:"create", entities:["Partner"], primaryEntity:"Partner", fieldValues:{"name":"TestCorp","partnerType":"SUPPLIER"}
-- "can i delete vat rate 20%" → action:"delete", entities:["Vat"], primaryEntity:"Vat", fieldValues:{"rate":"20"}
-- "create partner and link to article" → action:"link", entities:["Partner","Article","ArticlePartner"], primaryEntity:"ArticlePartner", crossModule:true
-- "edit existing retail chain and rename to Acme" → action:"update", entities:["RetailChain"], primaryEntity:"RetailChain", fieldValues:{"name":"Acme"}
-- "chk if partner code TC001 already there" → action:"list", entities:["Partner"], primaryEntity:"Partner", notes:["uniqueness"]
-- "what if i leave name empty while creating partner" → action:"create", entities:["Partner"], primaryEntity:"Partner", notes:["negative","validation"]`;
+GUIDELINES:
+- Correct obvious typos in entity names (e.g. "parnter" → "Partner")
+- Detect cross-module asks where one entity links to another
+- Extract specific field values when the user provides them (names, codes, types)
+- Set confidence lower when the ask is ambiguous`;
 
 /**
  * Parse user intent using DeepSeek NLP.

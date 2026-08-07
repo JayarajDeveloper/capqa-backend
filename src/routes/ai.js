@@ -23,7 +23,7 @@ import { indexRepo, indexActiveRepos, getIndexStatus } from '../lib/rag/indexer.
 import { persistTestRun, publicRun } from '../lib/reports/persistRun.js';
 import { extractAllRules, formatAllRules } from '../lib/rag/allRules.js';
 import { readSourceDirect, buildDirectContext } from '../lib/rag/directSource.js';
-import { nlpParseIntent, mergeIntents } from '../lib/rag/nlpIntent.js';
+import { nlpParseIntent } from '../lib/rag/nlpIntent.js';
 
 // Mounted at /api. Full paths include /projects/:projectId.
 export const aiRouter = Router();
@@ -410,10 +410,9 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
     { id: 'ready',    status: 'pending', label: 'Ready',                         detail: '' },
   ];
 
-  // NLP parse
-  let intent = parseIntent(title, description);
-  const nlpResult = await nlpParseIntent(title, description, { apiKey }).catch(() => null);
-  if (nlpResult) intent = mergeIntents(nlpResult, intent);
+  // NLP parse (sole intent parser — no keyword fallback)
+  const rawIntent = await nlpParseIntent(title, description, { apiKey }).catch(() => null);
+  const intent = rawIntent || parseIntent(title, description); // parseIntent for subjectTerms only
 
   agentSteps[0] = {
     id: 'intent', status: 'done',

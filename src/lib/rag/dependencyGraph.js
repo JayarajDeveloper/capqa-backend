@@ -83,29 +83,37 @@ export async function buildDependencyGraph() {
 /**
  * Given a target entity, compute the hard dependency chain (NOT NULL FKs only).
  * Returns entities in creation order. Depth-limited to avoid infinite recursion.
+ *
+ * Auto-detects seed/system entities:
+ *  - Entities with no UI pages folder (no standalone create/edit pages)
+ *  - Translation entities (always excluded)
+ *  - Entities marked as nullable FKs (optional, not hard deps)
  */
-export function resolveDependencyChain(graph, targetEntity, maxDepth = 3, useRequired = true) {
+export function resolveDependencyChain(graph, targetEntity, { maxDepth = 3, useRequired = true, uiEntityNames = null } = {}) {
   const visited = new Set();
   const order = [];
 
-  // Pre-existing seed/system entities — never create in tests
-  const skipEntities = new Set([
-    'User', 'Enterprise', 'Country', 'City', 'Currency', 'Settings',
-    'Address', 'Site', 'Group', 'ItemGroupSiteEntity',
-  ]);
+  // Auto-detect seed entities: entities with no UI folder are system/seed data
+  const uiSet = uiEntityNames instanceof Set ? uiEntityNames : new Set(uiEntityNames || []);
+
+  function isSeedEntity(name) {
+    if (!graph.has(name)) return false;
+    if (name.endsWith('Translation')) return true;
+    // Entities without UI pages are seed/system data (Country, City, Currency, etc.)
+    if (uiSet.size > 0 && !uiSet.has(name)) return true;
+    return false;
+  }
 
   function visit(name, depth = 0) {
     if (visited.has(name) || depth > maxDepth) return;
-    if (skipEntities.has(name)) return;
-    if (name.endsWith('Translation')) return;
+    if (isSeedEntity(name)) return;
 
     visited.add(name);
     const node = graph.get(name);
     if (node) {
-      // Use requiredDeps for hard dependencies, dependsOn for context
       const deps = useRequired ? (node.requiredDeps || node.dependsOn) : node.dependsOn;
       for (const dep of deps) {
-        if (graph.has(dep) && dep !== name && !skipEntities.has(dep) && !dep.endsWith('Translation')) {
+        if (graph.has(dep) && dep !== name && !isSeedEntity(dep)) {
           visit(dep, depth + 1);
         }
       }

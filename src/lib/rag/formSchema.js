@@ -25,22 +25,61 @@ import {
   rankFeaturePath,
 } from './codeSignals.js';
 import { pickIdentityFieldFromSchema } from './askAnalyzer.js';
+import { env } from '../../env.js';
+import { targetAdapter } from '../../adapters/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CAPBO_I18N_DIR = path.resolve(__dirname, '../../../../capbo-frontend/src/assets/i18n');
-/** English catalog only — used to derive list-search field keys (code, name, …). */
-const I18N_SEARCH_FILE = path.join(CAPBO_I18N_DIR, 'en-GB.json');
+/**
+ * i18n catalogs are located from the configured UI root, not from a sibling path
+ * relative to this file. The old form hardcoded the target's repo name and, when it
+ * did not resolve, silently produced an empty catalog — degrading label lookup and
+ * list-search key derivation with no signal at all.
+ */
+function i18nDirs() {
+  const root = env.CAPQA_LOCAL_UI_ROOT;
+  if (!root) return [];
+  return targetAdapter.layout.uiI18nDirs.map((segs) => path.join(root, ...segs));
+}
 
 let i18nCache = null;
+
+let i18nWarned = false;
+
+/**
+ * Pick ONE catalog. Merging every locale would let the alphabetically-last file
+ * (fr-FR) overwrite English labels. Preference: CAPQA_I18N_LOCALE, then any
+ * English catalog, then the first available — so a target with no English
+ * catalog still works.
+ */
+function pickCatalogFile(files) {
+  const want = String(process.env.CAPQA_I18N_LOCALE || '').toLowerCase();
+  const byName = (pred) => files.find((f) => pred(f.toLowerCase().replace(/\.json$/, '')));
+  return (want && byName((n) => n === want))
+    || (want && byName((n) => n.split(/[-_]/)[0] === want.split(/[-_]/)[0]))
+    || byName((n) => n.split(/[-_]/)[0] === 'en')
+    || files.slice().sort()[0]
+    || null;
+}
 
 function loadI18nCatalog() {
   if (i18nCache) return i18nCache;
   i18nCache = {};
-  try {
-    if (fs.existsSync(I18N_SEARCH_FILE)) {
-      Object.assign(i18nCache, JSON.parse(fs.readFileSync(I18N_SEARCH_FILE, 'utf8')));
-    }
-  } catch { /* ignore */ }
+  let loadedFrom = null;
+  for (const dir of i18nDirs()) {
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { continue; }
+    const pick = pickCatalogFile(files);
+    if (!pick) continue;
+    try {
+      Object.assign(i18nCache, JSON.parse(fs.readFileSync(path.join(dir, pick), 'utf8')));
+      loadedFrom = path.join(dir, pick);
+      break;
+    } catch { /* a malformed catalog should not take the whole lookup down */ }
+  }
+  if (!loadedFrom && !i18nWarned) {
+    i18nWarned = true;
+    console.warn('[formSchema] no i18n catalog found under CAPQA_LOCAL_UI_ROOT — labels and list-search keys will be empty');
+  }
   return i18nCache;
 }
 
@@ -347,7 +386,7 @@ export function buildBusinessRules(field) {
   const v = field.validators || {};
   const rules = [];
   if (v.patternRegex === '[A-Z]{3}') {
-    rules.push('exactly 3 uppercase letters (ISO currency / alpha code)');
+    rules.push('exactly 3 uppercase letters');
   } else if (v.patternRegex === '[0-9]{3}') {
     rules.push('exactly 3 digits (ISO 4217 numeric code)');
   } else if (v.patternRegex) {
@@ -425,16 +464,6 @@ function parseLabels(text) {
 }
 
 function inferLabel(key, labels) {
-  const human = {
-    sales_unit: 'Sales unit',
-    vatId: 'VAT',
-    retailChains: 'Retail Chains',
-    level1: 'Level 1',
-    shortDesignation: 'Short description',
-    longDesignation: 'Detailed description',
-  };
-  if (human[key]) return human[key];
-
   const n = normKey(key);
   for (const [short, i18n] of Object.entries(labels)) {
     if (normKey(short) === n || normKey(i18n).includes(n) || n.includes(normKey(short))) {
@@ -457,22 +486,23 @@ function upsertField(map, key, patch, filterKeys = []) {
   });
 }
 
-function attachTestIds(map, testIds, entityStem) {
-  /** testId tail → form field key when normKey alone is ambiguous */
-  const tailAliases = {
-    vat: 'vatId',
-    'sales-unit': 'sales_unit',
-    'salesunit': 'sales_unit',
-    'retail-chains': 'retailChains',
-    level1: 'level1',
-    level2: 'level2',
-  };
+function resolveTailToFieldKey(tail, mapKeys) {
+  const nTail = normKey(tail);
+  const camel = tail.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  for (const key of mapKeys) {
+    const nk = normKey(key);
+    if (nk === nTail || nk === normKey(camel)) return key;
+    if (nk.startsWith(nTail) && nk.length <= nTail.length + 4) return key;
+  }
+  return null;
+}
 
+function attachTestIds(map, testIds, entityStem) {
   for (const id of testIds || []) {
     if (/search|filter|active|export|create|save|cancel|delete|row|edit|view|paginator|form|list|table|header|toolbar/i.test(id)) continue;
     const tail = id.includes('-') ? id.split('-').slice(1).join('-') : id;
     const camel = tail.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    const aliasKey = tailAliases[tail] || tailAliases[normKey(tail)];
+    const aliasKey = resolveTailToFieldKey(tail, [...map.keys()]);
 
     const keysToTry = [...new Set([aliasKey, tail, camel].filter(Boolean))];
     for (const key of map.keys()) {

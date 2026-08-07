@@ -6,7 +6,7 @@ import { validate, projectSchema } from '../lib/validate.js';
 export const projectsRouter = Router();
 projectsRouter.use(requireAuth);
 
-// Derive a project key like "CAPBO" from a name.
+// Derive a short project key from a name (e.g. "My App" → "MA").
 function keyFromName(name) {
   const words = name.replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
   if (!words.length) return 'PROJ';

@@ -8,6 +8,12 @@ import { pickIdentityFieldFromSchema } from '../rag/askAnalyzer.js';
 import { extractModuleCapabilities } from '../rag/codeSignals.js';
 import { extractFormSchema, defaultValueForField, isFilterFieldKey } from '../rag/formSchema.js';
 import { auditCodeTestIds, auditAutomationTestIds, formatTestIdAuditError } from '../rag/codeTestIds.js';
+import { findModule, requiredFieldNames } from '../index/capabilityIndex.js';
+import { targetAdapter, alternation } from '../../adapters/index.js';
+
+/** Generic action labels live under adapter-declared key namespaces (common.add, btn.create). */
+const I18N_ACTION_KEY_RE = new RegExp(
+  `(?:${alternation(targetAdapter.i18nActionNamespaces)})\\.(add|create|new)`, 'i');
 
 function slugFromFeature(name) {
   return String(name || '')
@@ -129,7 +135,7 @@ function searchFillStrategies(vocab = {}) {
   return strategies;
 }
 
-/** Edit button on a filtered row — CapBO editRetailChain() → /details?id=…&mode=edit (never bare /details). */
+/** Edit button on a filtered row — target editRetailChain() → /details?id=…&mode=edit (never bare /details). */
 export function editButtonStrategies(vocab, needle) {
   const rowTestId = (vocab.testIds || []).find((id) => /-row$/i.test(id));
   const editTestId = (vocab.testIds || []).find((id) => /-edit$/i.test(id));
@@ -214,7 +220,7 @@ function deleteButtonStrategies(vocab, needle) {
   return strategies;
 }
 
-/** Delete confirmation dialog — shared CapBO confirm testId; module-specific only when indexed in code. */
+/** Delete confirmation dialog — shared target confirm testId; module-specific only when indexed in code. */
 function confirmDeleteStrategies(vocab) {
   const strategies = [];
   const moduleConfirm = (vocab.testIds || []).find((id) => /-delete-confirm$/i.test(id));
@@ -249,7 +255,7 @@ export function dedupeStrategies(strategies = []) {
   return out;
 }
 
-/** Locator strategies for list-page Add/Create — testId from CapBO code, plus i18n role fallback. */
+/** Locator strategies for list-page Add/Create — testId from target code, plus i18n role fallback. */
 export function createButtonStrategies(vocab = {}, _entityStem = '') {
   const createTestId = (vocab.testIds || []).find((id) => /-(create|add|new)$/i.test(id) && !/filter|search|modal|form$/i.test(id))
     || (vocab.testIds || []).find((id) => /create|add|new/i.test(id) && !/filter|search|form|cancel|delete/i.test(id))
@@ -260,7 +266,7 @@ export function createButtonStrategies(vocab = {}, _entityStem = '') {
     out.push({ type: 'testid', value: createTestId });
     out.push({ type: 'css', value: `[data-testid="${createTestId}"]` });
   }
-  // CapBO list Add often uses {{ 'common.add' | translate }} — role works when DOM lacks testId
+  // target list Add often uses {{ 'common.add' | translate }} — role works when DOM lacks testId
   out.push({ type: 'role', role: 'button', name: nameRe, regex: true });
   return dedupeStrategies(out);
 }
@@ -270,7 +276,7 @@ export function createButtonNamePattern(vocab = {}) {
   const labels = (vocab.labels || []).map((l) => String(l).toLowerCase());
   const parts = new Set(['add', 'create', 'new', 'ajouter', 'créer', 'creer', 'nouveau']);
   for (const key of labels) {
-    if (/common\.(add|create|new)|actions?\.(add|create|new)|btn\.(add|create)/i.test(key)) {
+      if (I18N_ACTION_KEY_RE.test(key)) {
       const leaf = key.split('.').pop();
       if (leaf) parts.add(leaf);
     }
@@ -282,7 +288,7 @@ function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Locator strategies for form Save/Submit — testId from CapBO code only. */
+/** Locator strategies for form Save/Submit — testId from target code only. */
 export function saveButtonStrategies(vocab = {}, _entityStem = '') {
   const saveTestId = (vocab.testIds || []).find((id) => /-(save|submit)$/i.test(id))
     || (vocab.testIds || []).find((id) => /save|submit/i.test(id) && !/form|cancel|delete/i.test(id))
@@ -341,7 +347,7 @@ export function ensureCreateClickStep(steps = [], {
   const createTid = (vocab.testIds || []).find((id) => /-(create|add|new)$/i.test(id) && !/filter|search|modal|form$/i.test(id))
     || null;
   if (!createTid) {
-    // No invented stems — CapBO must expose *-create testId
+    // No invented stems — target must expose *-create testId
     return normalizeAutomationStepOrder(list);
   }
   const createStep = {
@@ -468,7 +474,7 @@ export function mergeAutomationWithCodegen(aiAuto, codegenAuto) {
   const aiFills = countFills(aiAuto.steps);
   const cgFills = countFills(codegenAuto.steps);
 
-  // Schema/codegen has the real required fields (testIds from CapBO). If AI underfills, prefer codegen fills.
+  // Schema/codegen has the real required fields (testIds from target). If AI underfills, prefer codegen fills.
   if (cgFills > aiFills) {
     const merged = mergeFillStepsFromCodegen(
       {
@@ -754,7 +760,7 @@ export function buildUiAutomation({ uiPlan, codeContext, matchedFeature, intent 
           description: 'Confirm delete in dialog',
         });
       } else {
-        // CapBO: delete on edit form (e.g. retail-chain) — view mode hides delete button
+        // target: delete on edit form (e.g. retail-chain) — view mode hides delete button
         steps.push({
           id: 'click-edit',
           action: 'click',
@@ -1076,7 +1082,7 @@ function renderLocatorExpr(strategies, testId, formControl, opts = {}) {
   return null;
 }
 
-/** CapBO list path — strip /details so create starts on list (save uses history.back()). */
+/** target list path — strip /details so create starts on list (save uses history.back()). */
 function listPathForSpec(routeOrPath = '/') {
   let p = String(routeOrPath || '/').trim();
   try {
@@ -1203,8 +1209,8 @@ function pushTestStep(lines, title, codeLines) {
 
 function createFormBodyLines(createTid) {
   if (!createTid) {
-    // Junction tables and child components (ArticlePartner, etc.) don't have
-    // standalone create buttons — they're accessed from parent dialogs.
+    // Junction / child components often have no standalone create button —
+    // they're accessed from parent dialogs.
     // Return placeholder that the caller can override.
     return [
       '// No standalone create button — this module is accessed from a parent dialog',
@@ -1259,19 +1265,25 @@ export function buildRunnablePlaywrightSpec(automation, meta = {}) {
     ? String(searchTid).replace(/-search$/i, '-create')
     : (meta.createTestId || automation.createTestId || null);
   // If rewrite produced a stem that isn't a known code testId, still use it only when searchTid came from code
+  const syms = targetAdapter.specRuntime?.symbols || {
+    ensureSession: 'ensureTargetSession',
+    apiRequest: 'targetApiRequest',
+    ensureToken: 'ensureAccessToken',
+    resolveFirst: 'resolveApiFirstOptions',
+  };
   const lines = [];
 
   lines.push('// Auto-generated by Cap QA — run: cd capqa-backend && npx playwright test generated-e2e/<file>.spec.ts --headed');
   lines.push('// Fast path (~10s): run auth.setup once (E2E_AUTH_SETUP=1), then reuse generated-e2e/.auth/user.json');
   lines.push('// Requires TARGET_APP_URL, APP_TEST_USERNAME, APP_TEST_PASSWORD in env or Settings');
   lines.push("import { test, expect } from '@playwright/test';");
-  lines.push("import { ensureCapboSession, spaNavigate, verifyInList, assertAbsentInList, fillAngularField, fillMatAutocomplete, selectMatDropdown, waitForEditFormReady, waitForViewFormReady, waitForFormSave, clickListCreate, clickFormSave } from './helpers/capbo-ui';");
+  lines.push(`import { ${syms.ensureSession}, spaNavigate, verifyInList, assertAbsentInList, fillAngularField, fillMatAutocomplete, selectMatDropdown, waitForEditFormReady, waitForViewFormReady, waitForFormSave, clickListCreate, clickFormSave } from '${targetAdapter.specRuntime.uiHelper}';`);
   lines.push('');
   lines.push(`test.describe(${JSON.stringify(feature)}, () => {`);
   lines.push('  test.setTimeout(90_000);');
   lines.push('');
   lines.push(`  test(${JSON.stringify(title)}, async ({ page }) => {`);
-  pushTestStep(lines, 'Establish authenticated CapBO session', ['await ensureCapboSession(page);']);
+  pushTestStep(lines, 'Establish authenticated target session', [`await ${syms.ensureSession}(page);`]);
   lines.push('');
 
   let emittedExpect = false;
@@ -1357,7 +1369,7 @@ export function buildRunnablePlaywrightSpec(automation, meta = {}) {
         const roleStrat = (s.strategies || []).find((x) => x.type === 'role' && x.name);
         const nameRe = roleStrat?.name || createButtonNamePattern({});
         if (!createTid && !roleStrat) {
-          throw new Error('Create click missing code testId — add data-testid on CapBO Add button');
+          throw new Error('Create click missing code testId — the target UI has no data-testid on its Add button');
         }
         clickBody.push(
           `await clickListCreate(page, ${JSON.stringify(createTid)}, ${JSON.stringify(nameRe)});`,
@@ -1469,7 +1481,7 @@ function renderPlaywrightSpec({
 }
 
 /**
- * Extract CapBO/Symfony REST endpoints from indexed backend code.
+ * Extract target/Symfony REST endpoints from indexed backend code.
  * Supports: #[Route('/api/...')] class + method attributes, OpenAPI addPath.
  */
 export function extractApiEndpoints(codeContext) {
@@ -1483,7 +1495,7 @@ export function extractApiEndpoints(codeContext) {
     if (!p) return;
     if (!p.startsWith('/')) p = `/${p}`;
     p = p.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
-    // CapBO controllers use /api/... ; OpenAPI paths may already include it.
+    // target controllers use /api/... ; OpenAPI paths may already include it.
     // Prefer prepending /api when context already exposes this collection under /api or *Url.
     if (!p.startsWith('/api/') && /^\/[a-z0-9/_-]+$/i.test(p)) {
       const bare = p.replace(/^\//, '');
@@ -1542,7 +1554,7 @@ export function extractApiEndpoints(codeContext) {
   return endpoints;
 }
 
-/** CapBO REST collection path derived from indexed *Url / /api/… hits for the feature. */
+/** target REST collection path derived from indexed *Url / /api/… hits for the feature. */
 export function resolveApiCollectionPath(matchedFeature, codeContext = '') {
   const text = `${matchedFeature || ''} ${codeContext || ''}`;
   const slug = slugFromFeature(matchedFeature);
@@ -1566,7 +1578,16 @@ export function resolveApiCollectionPath(matchedFeature, codeContext = '') {
   }
 
   const scored = [...candidates]
-    .filter((p) => !/article[-_]?ecotax|article_ecotax|article-hierarch/i.test(p))
+    .filter((p) => {
+      const seg = p.replace(/^\/api\//i, '').split('/')[0].toLowerCase();
+      const slugNorm = stem(slug.replace(/-/g, ''));
+      const segNorm = stem(seg.replace(/[-_]/g, ''));
+      // Drop compound collection paths that extend the matched feature with extra tokens
+      if (slugNorm.length >= 3 && segNorm.length > slugNorm.length + 2 && segNorm.includes(slugNorm) && seg !== slug) {
+        return false;
+      }
+      return true;
+    })
     .map((p) => {
       const seg = p.replace(/^\/api\//i, '').split('/')[0].toLowerCase();
       let score = 0;
@@ -1584,42 +1605,19 @@ export function resolveApiCollectionPath(matchedFeature, codeContext = '') {
 
   if (scored.length) return scored[0].p;
 
-  // Last-resort heuristics when live chunks omit Url/Route (same modules as CapBO MVP)
-  if (/\/api\/ecotaxes|EcotaxController|ecotaxesUrl|eco[\s_-]?tax/i.test(text)) return '/api/ecotaxes';
-  if (/\/api\/currencies|CurrencyController|currenciesUrl|\bcurrenc/i.test(text)) return '/api/currencies';
-  if (/\/api\/vats|VatController|vatsUrl|\bvat\b/i.test(text)) return '/api/vats';
-  if (/\/api\/partners|PartnerController|partnersUrl|\bpartner/i.test(text)) return '/api/partners';
-  if (/\/api\/retail-chains|RetailChainController|retailChainsUrl|retail[\s_-]?chain/i.test(text)) {
-    return '/api/retail-chains';
-  }
-  if (
-    /ArticleOpenApiDecorator|articlesUrl|articles_v2_create|\barticles?\b/i.test(text)
-    && !/article[-_]?ecotax|article_ecotax|article-hierarch/i.test(text)
-  ) {
-    return '/api/articles';
-  }
+  // No table here. When the indexed source yields no path, the Capability Index
+  // (derived from the target's own routes) is consulted by the caller instead.
   return null;
 }
 
-function defaultApiRequiredFields(collectionPath, codeContext = '') {
-  // Prefer OpenAPI / $requiredFields from context — only use empty when nothing indexed.
-  // Kept as thin path-based fallbacks for truncated RAG (same as historical CapBO modules).
-  const p = String(collectionPath || '');
-  const text = String(codeContext || '');
-  if (/ecotaxes/i.test(p) || /EcotaxController|eco[\s_-]?tax/i.test(text)) {
-    return ['code', 'name', 'display_label', 'category', 'calculation_mode', 'value', 'vat_id'];
-  }
-  if (/currencies/i.test(p) || /CurrencyController/i.test(text)) {
-    return ['code', 'numericCode', 'name', 'symbol', 'roundingIncrement'];
-  }
-  if (/vats/i.test(p)) return ['code', 'name', 'rate'];
-  if (/partners/i.test(p)) return ['code', 'name'];
-  if (/retail-chains/i.test(p)) return ['code', 'name'];
-  if (/\/articles\b/i.test(p) && !/article-ecotax|article_ecotax/i.test(p)) {
-    return ['code', 'shortDesignation'];
-  }
-  return [];
+function defaultApiRequiredFields(collectionPath, codeContext = '', capabilityIndex = null) {
+  // Required fields come from the target's entity mapping via the Capability Index.
+  // Returning [] when the module is unknown is deliberate: fail closed rather than
+  // inventing a payload shape.
+  const mod = findModule(capabilityIndex, String(collectionPath || '').split('/').filter(Boolean).pop());
+  return mod ? requiredFieldNames(mod, { wire: true }) : [];
 }
+
 
 /** Required JSON body fields from OpenAPI createSchema or $requiredFields arrays. */
 export function extractApiRequiredFields(codeContext) {
@@ -1669,13 +1667,46 @@ export function askWantsFirstOption(field, intent = {}, testData = {}) {
   return false;
 }
 
+/** Derive form field name from an indexed enum-values type segment. */
+function fieldNameFromEnumType(enumType) {
+  const parts = String(enumType || '').split('_').filter(Boolean);
+  return parts.length >= 2 ? parts.slice(1).join('_') : enumType;
+}
+
+/** Derive FK body field from an indexed /{collection}/dropdowns path segment. */
+function fieldNameFromDropdownCollection(collectionSeg) {
+  const s = String(collectionSeg || '').replace(/-/g, '_');
+  const stem = s.endsWith('ies') ? `${s.slice(0, -3)}y` : s.endsWith('s') ? s.slice(0, -1) : s;
+  return `${stem}_id`;
+}
+
+/** Parse enum + dropdown resolver paths from indexed backend/frontend source. */
+export function extractApiDropdownResolvers(codeContext) {
+  const text = String(codeContext || '');
+  const out = [];
+  const seen = new Set();
+  const add = (field, apiPath, pick) => {
+    const key = `${field}::${apiPath}`;
+    if (!field || !apiPath || seen.has(key)) return;
+    seen.add(key);
+    out.push({ field, path: apiPath, pick });
+  };
+
+  for (const m of text.matchAll(/(\/api\/[^\s'"`,]+\/enum-values\/([a-z0-9_-]+))/gi)) {
+    add(fieldNameFromEnumType(m[2]), m[1], 'value');
+  }
+  for (const m of text.matchAll(/(\/api\/[a-z0-9_-]+\/dropdowns)/gi)) {
+    const seg = m[1].match(/\/api\/([a-z0-9_-]+)\/dropdowns/i)?.[1];
+    if (seg) add(fieldNameFromDropdownCollection(seg), m[1], 'id');
+  }
+  return out;
+}
+
 /**
- * CapBO dropdown → API field resolvers (same as UI “first option”).
- * Enums: GET /api/shared/enum-values/{type} → .value
- * FK lists: GET /api/…/dropdowns → .id
+ * Dropdown → API field resolvers (same as UI “first option”).
+ * Enums: GET …/enum-values/{type} → .value · FK lists: GET …/dropdowns → .id
  */
-export function buildApiFirstResolvers(collectionPath, body = {}, intent = {}, testData = {}) {
-  const path = String(collectionPath || '');
+export function buildApiFirstResolvers(collectionPath, body = {}, intent = {}, testData = {}, codeContext = '') {
   const resolvers = [];
   const push = (field, apiPath, pick) => {
     if (resolvers.some((r) => r.field === field)) return;
@@ -1684,18 +1715,23 @@ export function buildApiFirstResolvers(collectionPath, body = {}, intent = {}, t
       || cur === '__first__'
       || cur === 'first';
     const missing = cur == null || cur === '';
-    // Enum defaults (RCP…) are fine unless ask says first; FK ids must be fetched when missing
     if (!wantsFirst && !missing) return;
     if (!wantsFirst && missing && !/_id$/i.test(field)) return;
     resolvers.push({ field, path: apiPath, pick });
   };
 
-  if (/ecotaxes/i.test(path)) {
-    push('category', '/api/shared/enum-values/ecotax_category', 'value');
-    push('calculation_mode', '/api/shared/enum-values/ecotax_calculation_mode', 'value');
-    push('vat_id', '/api/vats/dropdowns', 'id');
+  const indexed = extractApiDropdownResolvers(codeContext);
+  for (const r of indexed) push(r.field, r.path, r.pick);
+  for (const field of Object.keys(body || {})) {
+    const hit = indexed.find((r) => r.field === field
+      || normFieldKey(r.field) === normFieldKey(field));
+    if (hit) push(field, hit.path, hit.pick);
   }
   return resolvers;
+}
+
+function normFieldKey(k) {
+  return String(k || '').toLowerCase().replace(/[-_]/g, '');
 }
 
 function sampleApiFieldValue(field, testData, suffix) {
@@ -1705,7 +1741,7 @@ function sampleApiFieldValue(field, testData, suffix) {
   if (key === testData?.primaryField && testData?.primaryValue) return testData.primaryValue;
 
   const lower = key.toLowerCase();
-  if (/^code$/i.test(key) || /currencycode|alphacode/i.test(lower)) {
+  if (/^code$/i.test(key) || (/code$/i.test(lower) && !/barcode|postcode|zipcode/i.test(lower))) {
     const raw = String(testData?.fields?.code || testData?.verifyText || `Q${suffix.slice(-2)}`);
     // Currency ISO codes are 3 letters; eco-tax / VAT codes keep full ask value
     if (/^[A-Za-z]{3}$/.test(raw) || raw.length <= 3) return raw.toUpperCase().padEnd(3, 'X');
@@ -1718,17 +1754,20 @@ function sampleApiFieldValue(field, testData, suffix) {
       || testData?.verifyText
       || `API ${suffix}`;
   }
-  if (/shortdesignation|short_designation/i.test(lower)) {
-    return testData?.fields?.shortDesignation
-      || testData?.fields?.short_designation
+  if (/designation/i.test(lower)) {
+    return testData?.fields?.[key]
       || testData?.verifyText
-      || `Article ${suffix}`;
+      || `Label ${suffix}`;
   }
-  if (/category/i.test(lower)) return testData?.fields?.category || 'RCP';
-  if (/calculation_mode|calculationmode/i.test(lower)) {
-    return testData?.fields?.calculation_mode || testData?.fields?.calculationMode || 'FIXED_AMOUNT';
+  // Enum / FK-style fields: prefer ask; otherwise mark for first-option resolution
+  if (/^(category|type|status|mode)$/i.test(key) || /_mode$|_type$|_status$|calculation.?mode/i.test(lower)) {
+    return testData?.fields?.[key]
+      || testData?.fields?.[key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())]
+      || '__first__';
   }
-  if (/vat_id|vatid/i.test(lower)) return testData?.fields?.vat_id ?? null;
+  if (/_id$/i.test(lower) || /^vat$/i.test(lower)) {
+    return testData?.fields?.[key] ?? testData?.fields?.[key.replace(/_id$/i, '')] ?? '__first__';
+  }
   if (/symbol/i.test(lower)) return testData?.fields?.symbol || '¤';
   if (/round/i.test(lower)) return testData?.fields?.roundingIncrement || '0.01';
   if (/rate|value|amount|percent/i.test(lower)) {
@@ -1777,7 +1816,7 @@ export function parseAskApiFields(intent = {}, testData = {}) {
 /**
  * Build API automation from grounded backend/OpenAPI code.
  */
-export function buildApiAutomation({ cases, codeContext, matchedFeature, intent }) {
+export function buildApiAutomation({ cases, codeContext, matchedFeature, intent, capabilityIndex = null }) {
   const text = String(codeContext || '');
   const vocab = extractCodeVocabulary(text);
   let testData = intent?.testData
@@ -1796,7 +1835,10 @@ export function buildApiAutomation({ cases, codeContext, matchedFeature, intent 
 
   // When Backend layer is on but live chunks omit Route/OpenAPI, still emit HTTP steps.
   // Also fill missing verbs when chunks only captured GET (common with truncated OpenAPI PathItem).
-  const fallbackPath = resolveApiCollectionPath(matchedFeature, text);
+  const indexedModule = findModule(capabilityIndex, matchedFeature);
+  const fallbackPath = resolveApiCollectionPath(matchedFeature, text)
+    || indexedModule?.api?.collectionPath
+    || null;
   if (fallbackPath) {
     const hasGet = endpoints.some((e) => e.method === 'GET' && e.path === fallbackPath);
     const hasPost = endpoints.some((e) => e.method === 'POST' && e.path === fallbackPath);
@@ -1821,12 +1863,14 @@ export function buildApiAutomation({ cases, codeContext, matchedFeature, intent 
   const askKeys = Object.keys(testData?.fields || {}).filter(
     (k) => testData.fields[k] != null && testData.fields[k] !== '',
   );
-  const defaults = defaultApiRequiredFields(collection?.path || fallbackPath, text);
+  const defaults = defaultApiRequiredFields(collection?.path || fallbackPath, text, capabilityIndex);
   // Union — never drop collection defaults when DB/OpenAPI required[] is incomplete (e.g. missing code)
+  const resolverFields = extractApiDropdownResolvers(text).map((r) => r.field);
   let keys = [...new Set([
     ...defaults,
     ...requiredFields,
-    ...askKeys.filter((k) => defaults.includes(k) || requiredFields.includes(k) || /^(code|name|display_label|category|calculation_mode|value|is_active)$/i.test(k)),
+    ...resolverFields,
+    ...askKeys.filter((k) => defaults.includes(k) || requiredFields.includes(k) || resolverFields.includes(k) || /^(code|name|display_label|value|is_active|isActive)$/i.test(k)),
   ])];
   if (!keys.length) keys = ['name'];
 
@@ -1859,8 +1903,9 @@ export function buildApiAutomation({ cases, codeContext, matchedFeature, intent 
   }
   if (!body.name && askFields.name) body.name = askFields.name;
   if (!body.display_label && body.name) body.display_label = body.name;
-  if (/ecotaxes/i.test(collection?.path || '') && body.is_active === undefined) body.is_active = true;
-  if (/currencies/i.test(collection?.path || '') && body.isActive === undefined) body.isActive = true;
+  for (const k of keys) {
+    if (/^is_?active$/i.test(k) && body[k] === undefined) body[k] = true;
+  }
 
   // Mirror UI “first option”: leave placeholders; runtime GETs enum/dropdown lists
   const firstResolvers = buildApiFirstResolvers(
@@ -1868,6 +1913,7 @@ export function buildApiAutomation({ cases, codeContext, matchedFeature, intent 
     body,
     intent,
     testData,
+    text,
   );
   for (const r of firstResolvers) {
     body[r.field] = '__first__';
@@ -1928,7 +1974,7 @@ export function buildApiAutomation({ cases, codeContext, matchedFeature, intent 
   if (action === 'update') {
     const code = body.code || testData?.existingRowNeedle || testData?.searchTerm;
     const updateEp = endpoints.find((e) => e.method === 'PUT')
-      || (code ? { method: 'PUT', path: `${collection?.path || '/api/currencies'}/${code}` } : null);
+      || (code && collection?.path ? { method: 'PUT', path: `${collection.path}/${code}` } : null);
     if (updateEp) {
       const path = /\{/.test(updateEp.path) && code
         ? updateEp.path.replace(/\{[^}]+\}/, encodeURIComponent(String(code)))
@@ -1972,13 +2018,13 @@ export function buildApiAutomation({ cases, codeContext, matchedFeature, intent 
   };
 }
 
-/** CapBO table name from feature / Doctrine #[ORM\Table]. */
+/** target table name from feature / Doctrine #[ORM\Table]. */
 export function resolveDbTableName(matchedFeature, codeContext = '') {
   const tables = resolveDbTables(matchedFeature, codeContext);
   return tables[0] || null;
 }
 
-/** CapBO table names from indexed Doctrine #[ORM\Table] — no feature→table hardcoding. */
+/** target table names from indexed Doctrine #[ORM\Table] — no feature→table hardcoding. */
 export function resolveDbTables(matchedFeature, codeContext = '') {
   const text = String(codeContext || '');
   const found = [];
@@ -2086,7 +2132,9 @@ function extractColumnsFromDoctrineSource(src) {
     if (!/#\[ORM\\(?:Id|Column)\(/i.test(before)) continue;
     if (/#\[ORM\\(?:OneToMany|ManyToMany)\(/i.test(before)) continue;
     if (/Collection\s*;?\s*$/i.test(text.slice(m.index, m.index + 100))) continue;
-    if (/^(translations|articleEcotaxes|enterprise|vat|eanCodes|composition)$/i.test(prop)) continue;
+    if (prop.endsWith(targetAdapter.i18nEntitySuffix)) continue;
+    if (/#\[ORM\\(?:ManyToOne|OneToOne|OneToMany|ManyToMany)\(/i.test(before)
+      && !/#\[ORM\\JoinColumn\([^)]*name:\s*'/i.test(before)) continue;
     const colAttr = [...before.matchAll(/#\[ORM\\Column\(([^)]*)\)/gi)].pop()?.[1] || '';
     const nameM = colAttr.match(/name:\s*'([a-z0-9_]+)'/i);
     if (nameM) {
@@ -2192,18 +2240,24 @@ export function buildRunnableApiSpec(automation, meta = {}) {
   const action = automation.action || meta.action || 'create';
   const steps = automation.steps || [];
   const lines = [];
+  const syms = targetAdapter.specRuntime?.symbols || {
+    ensureSession: 'ensureTargetSession',
+    apiRequest: 'targetApiRequest',
+    ensureToken: 'ensureAccessToken',
+    resolveFirst: 'resolveApiFirstOptions',
+  };
   lines.push('// Auto-generated by Cap QA — API');
-  lines.push('// Requires TARGET_API_URL (or CapBO backend at http://localhost:8000/api)');
-  lines.push('// Auth: reuses generated-e2e/.auth/user.json cookie capbo_access_token (run UI Foreground once)');
+  lines.push('// Requires TARGET_API_URL to point at the target API');
+  lines.push('// Auth: reuses generated-e2e/.auth/user.json access-token cookie (run UI Foreground once)');
   lines.push("import { test, expect } from '@playwright/test';");
-  lines.push("import { capboApiRequest, ensureCapboAccessToken, resolveApiFirstOptions } from '../helpers/capbo-api';");
+  lines.push(`import { ${syms.apiRequest}, ${syms.ensureToken}, ${syms.resolveFirst} } from '${targetAdapter.specRuntime.apiHelper}';`);
   lines.push('');
   lines.push(`test.describe(${JSON.stringify(`${feature} · API`)}, () => {`);
   lines.push('  test.setTimeout(60_000);');
   lines.push('');
   lines.push(`  test(${JSON.stringify(`API · ${action} ${feature}`)}, async ({ request }) => {`);
-  lines.push('    const token = await ensureCapboAccessToken(request);');
-  lines.push("    test.skip(!token, 'No CapBO token — run a UI Foreground test once to cache SSO');");
+  lines.push(`    const token = await ${syms.ensureToken}(request);`);
+  lines.push("    test.skip(!token, 'No target API token — run a UI Foreground test once to cache SSO');");
   lines.push('');
 
   for (const s of steps) {
@@ -2213,15 +2267,15 @@ export function buildRunnableApiSpec(automation, meta = {}) {
     lines.push(`    await test.step(${JSON.stringify(title)}, async () => {`);
     if (s.body != null && hasFirst) {
       lines.push(`      let body = ${JSON.stringify(s.body)};`);
-      lines.push(`      body = await resolveApiFirstOptions(request, body, ${JSON.stringify(s.resolveFirst)}, token);`);
-      lines.push('      const res = await capboApiRequest(request, {');
+      lines.push(`      body = await ${syms.resolveFirst}(request, body, ${JSON.stringify(s.resolveFirst)}, token);`);
+      lines.push(`      const res = await ${syms.apiRequest}(request, {`);
       lines.push(`        method: ${JSON.stringify(s.method || 'GET')},`);
       lines.push(`        path: ${JSON.stringify(s.path)},`);
       lines.push('        body,');
       lines.push('        token,');
       lines.push('      });');
     } else {
-      lines.push('      const res = await capboApiRequest(request, {');
+      lines.push(`      const res = await ${syms.apiRequest}(request, {`);
       lines.push(`        method: ${JSON.stringify(s.method || 'GET')},`);
       lines.push(`        path: ${JSON.stringify(s.path)},`);
       if (s.body != null) {
@@ -2403,13 +2457,10 @@ export function ensureAutomationHasFillSteps(automation, {
     if (s.action !== 'fill' || !s.formControl) return s;
     const meta = fieldByKey.get(s.formControl) || {};
     const tid = s.testId || meta.testId || '';
-    const dropdownTid = /-(category|vat|country|type|currency|calculation-mode|enterprise-identifier)$/i.test(tid);
-    // Do NOT treat invented "name-xxx" alone as dropdown — that breaks text fields.
     const shouldSelect = interactionKindForField(meta, s.value) === 'select'
       || meta.type === 'dropdown'
       || /dropdown|select/i.test(meta.componentType || '')
-      || /dropdown/i.test(s.description || '')
-      || dropdownTid;
+      || /dropdown/i.test(s.description || '');
     if (!shouldSelect) return s;
     const testId = tid || null;
     const invented = isInventedDropdownValue(s.value, s.formControl);
@@ -2579,7 +2630,7 @@ export function ensureVerifyStep(automation, { testData, resolvedValues, schema,
       };
     }
     // Normalize every verify to the same prepared name (avoid code vs name mismatch)
-    const looksLikeName = /name|partner|label|title/i.test(s.description || '')
+    const looksLikeName = /name|label|title|designation/i.test(s.description || '')
       || String(s.text) === needle
       || !/^[A-Z]{3}$/.test(String(s.text));
     return looksLikeName
@@ -2615,6 +2666,7 @@ export function buildAutomationBundle({
   matchedFeature,
   intent,
   uiAutomation = null,
+  capabilityIndex = null,
 }) {
   const wantsUi = !layers.length || layers.includes('ui');
   const wantsApi = layers.includes('backend');
@@ -2675,12 +2727,22 @@ export function buildAutomationBundle({
       title: uiPlan?.title,
     });
 
-    // Fail closed: every fill/select/create/save must use CapBO code testIds
+    // Fail closed: every fill/select/create/save must use target code testIds
     if (out.ui?.steps?.length) {
       const vocab = extractCodeVocabulary(uiContext || '');
       const schema = out.ui.data?.formSchema || extractFormSchema(uiContext || '');
-      // Audit skipped — field-driven testIds are auto-derived, always valid
-      const skipAudit = out.ui.isFieldDriven === true || true;
+      // Fail closed: every fill/select/create/save must use a testId parsed from the
+      // target app's own source. Never invent stems.
+      //   CAPQA_TESTID_AUDIT=warn (default) -> attach out.ui.testIdAuditWarnings, keep going
+      //   CAPQA_TESTID_AUDIT=strict          -> throw CODE_TESTIDS_REQUIRED
+      //   CAPQA_TESTID_AUDIT=off             -> skip entirely (the old `|| true` behaviour)
+      //
+      // Default is `warn`, not `strict`, because the current reference target cannot
+      // satisfy strict: target-frontend has data-testid on only 5 of 155 component
+      // templates (8 attributes total, all on the partner module). Strict would block
+      // essentially every compose. Flip to strict per-module as the target adds testids.
+      const auditMode = String(process.env.CAPQA_TESTID_AUDIT || 'warn').toLowerCase();
+      const skipAudit = out.ui.isFieldDriven === true || auditMode === 'off';
       const schemaAudit = skipAudit ? { ok: true } : auditCodeTestIds({
         schema,
         vocab,
@@ -2688,12 +2750,16 @@ export function buildAutomationBundle({
       });
       const stepAudit = skipAudit ? { ok: true } : auditAutomationTestIds(out.ui);
       if (!schemaAudit.ok || !stepAudit.ok) {
-        const err = new Error(formatTestIdAuditError({
-          missing: [...(schemaAudit.missing || []), ...(stepAudit.missing || [])],
-        }));
-        err.code = 'CODE_TESTIDS_REQUIRED';
-        err.missing = [...(schemaAudit.missing || []), ...(stepAudit.missing || [])];
-        throw err;
+        const missing = [...(schemaAudit.missing || []), ...(stepAudit.missing || [])];
+        if (auditMode === 'warn') {
+          console.warn('[codegen] testId audit:', missing.map((m) => m.message).join(' | '));
+          out.ui = { ...out.ui, testIdAuditWarnings: missing };
+        } else {
+          const err = new Error(formatTestIdAuditError({ missing }));
+          err.code = 'CODE_TESTIDS_REQUIRED';
+          err.missing = missing;
+          throw err;
+        }
       }
       out.ui = {
         ...out.ui,
@@ -2708,6 +2774,7 @@ export function buildAutomationBundle({
       codeContext: apiContext,
       matchedFeature,
       intent,
+      capabilityIndex,
     });
   }
   if (wantsDb) {

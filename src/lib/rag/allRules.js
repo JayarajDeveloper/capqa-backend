@@ -6,8 +6,6 @@
  * required fields + uniqueness checks + permission rules to the LLM.
  */
 
-import { env } from '../../env.js';
-
 /**
  * Extract ALL business rules from direct-read files.
  * Returns a single catalog with every rule found.
@@ -58,6 +56,9 @@ export function extractAllRules(direct) {
     }
   }
 
+  catalog.required = [...new Set(catalog.required)];
+  catalog.rules = [...new Set(catalog.rules)];
+
   // ── Build summary ──
   catalog.summary = {
     entities: Object.keys(catalog.entities).length,
@@ -72,6 +73,53 @@ export function extractAllRules(direct) {
 }
 
 /**
+ * Split a PHP class body into { name, attrs[] } for each declared property.
+ *
+ * Attribute blocks are accumulated line by line and flushed onto the next
+ * property declaration, so the field name is READ, never guessed. Multi-line
+ * attributes are joined by tracking bracket depth.
+ */
+export function parseEntityProperties(content) {
+  const props = [];
+  const lines = String(content || '').split('\n');
+  let attrs = [];
+  let pending = null;
+  let depth = 0;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // Continuation of a multi-line attribute.
+    if (pending !== null) {
+      pending += '\n' + line;
+      depth += (line.split('[').length - 1) - (line.split(']').length - 1);
+      if (depth <= 0) { attrs.push(pending); pending = null; depth = 0; }
+      continue;
+    }
+
+    if (line.startsWith('#[')) {
+      const open = (line.split('[').length - 1) - (line.split(']').length - 1);
+      if (open > 0) { pending = line; depth = open; }
+      else attrs.push(line);
+      continue;
+    }
+
+    const m = line.match(/^(?:private|protected|public)(?:\s+readonly)?\s+[^$]*\$(\w+)/);
+    if (m) {
+      if (attrs.length) props.push({ name: m[1], attrs: attrs.slice(), decl: line });
+      attrs = [];
+      continue;
+    }
+
+    // Docblocks do not break an attribute block; anything else does.
+    if (!line.startsWith('*') && !line.startsWith('/*') && !line.startsWith('//')) attrs = [];
+  }
+
+  return props;
+}
+
+/**
  * Extract rules from a single entity PHP file.
  */
 function extractEntityRules(content, entityName) {
@@ -79,37 +127,49 @@ function extractEntityRules(content, entityName) {
   const required = [];
   const permissions = [];
 
-  // Assert constraints
-  const assertMatch = content.match(/#\[Assert\\(NotBlank|Length|Email|Regex|Positive|Range|NotEqualTo)[^\]]*\]/g) || [];
-  for (const a of assertMatch) {
-    const type = a.match(/Assert\\(\w+)/)?.[1] || 'Constraint';
-    // Find the field this belongs to
-    const fieldMatch = content.slice(
-      Math.max(0, content.indexOf(a) - 300),
-      content.indexOf(a)
-    ).match(/\$(\w+)/g)?.pop()?.replace('$', '') || 'field';
-    
-    if (type === 'NotBlank') required.push(`${entityName}.${fieldMatch}`);
-    constraints.push({ field: fieldMatch, rule: type });
-  }
+  for (const prop of parseEntityProperties(content)) {
+    const blob = prop.attrs.join('\n');
 
-  // ORM column constraints
-  const colMatch = content.match(/#\[ORM\\Column\s*\([^)]*\)\]/g) || [];
-  for (const c of colMatch) {
-    const unique = c.includes('unique: true');
-    const nullable = c.match(/nullable:\s*(\w+)/)?.[1];
-    const field = c.includes('private') ? c.split('$')[1]?.split(';')[0]?.trim() : null;
-    if (unique) constraints.push({ field: field || 'col', rule: 'UNIQUE' });
-    if (nullable === 'false' && !required.includes(field)) required.push(`${entityName}.${field}`);
+    // ORM column constraints — field name comes from the property declaration.
+    const col = blob.match(/#\[ORM\\Column\s*\(([\s\S]*?)\)\s*\]/);
+    if (col) {
+      const args = col[1];
+      if (/unique:\s*true/.test(args)) constraints.push({ field: prop.name, rule: 'UNIQUE' });
+      if (/nullable:\s*false/.test(args)) required.push(`${entityName}.${prop.name}`);
+      const len = args.match(/length:\s*(\d+)/);
+      if (len) constraints.push({ field: prop.name, rule: `MAX LENGTH ${len[1]}` });
+    }
+
+    // Symfony validation constraints — every Assert\*, not a fixed list of 7.
+    for (const a of blob.matchAll(/#\[Assert\\(\w+)/g)) {
+      const type = a[1];
+      if (type === 'NotBlank' || type === 'NotNull') required.push(`${entityName}.${prop.name}`);
+      constraints.push({ field: prop.name, rule: type });
+    }
   }
 
   // ApiResource security
-  const secMatch = content.match(/security:\s*"([^"]+)"/g) || [];
-  for (const s of secMatch) {
+  for (const s of content.match(/security:\s*"([^"]+)"/g) || []) {
     permissions.push(`${entityName}: ${s.match(/"([^"]+)"/)?.[1]}`);
   }
 
-  return { constraints, required, permissions };
+  return {
+    constraints: dedupe(constraints, (c) => `${c.field}|${c.rule}`),
+    required: [...new Set(required)],
+    permissions: [...new Set(permissions)],
+  };
+}
+
+function dedupe(list, keyOf) {
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const k = keyOf(item);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(item);
+  }
+  return out;
 }
 
 /**

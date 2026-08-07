@@ -15,6 +15,11 @@ import { buildFieldCatalog } from './rag/askAnalyzer.js';
 import { extractModuleCapabilities, assessComposeFeasibility, normalizeRowNeedle } from './rag/codeSignals.js';
 import { buildUiAutomationFromAiPlan, validateAiExecutionPlan } from './automation/aiAutomation.js';
 import { extractRouteHints } from './automation/codegen.js';
+import { targetAdapter, alternation } from '../adapters/index.js';
+
+/** Generic action labels live under adapter-declared i18n namespaces (common.add, btn.create). */
+const I18N_ACTION_KEY_RE = new RegExp(
+  `(?:${alternation(targetAdapter.i18nActionNamespaces)})\\.(add|create|new)`, 'i');
 
 const DEFAULT_MODELS = {
   deepseek: env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
@@ -76,7 +81,7 @@ HARD RULES:
 4. For update/edit: existingRowNeedle = row to find (often first quoted value); fields.name = new value if given.
 5. For create: fields.name = the value to type in the primary name/title field.
 6. searchTerm = list search/filter value when user wants to find a row or filter a list.
-7. verifyText = the created entity NAME (e.g. partner name from PREPARED TEST DATA). NEVER use "success", "saved", or "submitted successfully".
+7. verifyText = the created entity NAME, taken from PREPARED TEST DATA. NEVER use "success", "saved", or "submitted successfully".
 8. NEVER map values to filter controls: activeOnly, searchTerm, search, filter, query.
 9. For create flows, fields.name is the primary identity field unless user specifies code.
 10. Field-specific phrases: "country dropdown as France" → fields.country = "France" (NOT name).
@@ -98,9 +103,9 @@ CRITICAL — GRANULARITY:
 - Never group "fill the form" — always "Enter code", "Enter name", "Select type".
 
 CRITICAL — NAVIGATION:
-- Use ONLY routes from the CAPBO NAVIGATION section in the prompt (runtime-discovered).
-- Routes follow /{module-plural} convention (e.g. /partners, /articles).
-- Child/junction entities (ArticlePartner, PartnerHierarchy) are accessed via parent dialogs — they have no standalone route.
+- Use ONLY routes that appear in the supplied source context (runtime-discovered).
+- Use only routes present in the supplied source context.
+- Child/junction entities are accessed via parent dialogs — they have no standalone route.
 - Never invent routes — use what the prompt provides.
 
 CRITICAL — CROSS-MODULE:
@@ -688,7 +693,7 @@ function extractUiFacts(codeContext) {
     required: /Validators\.required|hasError\('(\w+)',\s*'required'\)/.test(text),
     minLength: [...text.matchAll(/Validators\.minLength\((\d+)\)/g)].map((m) => Number(m[1])).filter(Boolean)[0] || null,
   };
-  const listPage = /list-container|mat-table|dataSource|common\.add/i.test(text) || clicks.some((c) => /create/i.test(c));
+  const listPage = /list-container|mat-table|dataSource/i.test(text) || I18N_ACTION_KEY_RE.test(text) || clicks.some((c) => /create/i.test(c));
   const formPage = /formControlName|action-buttons|getSubmitButtonText|FormGroup|FormBuilder/i.test(text);
   const createClick = clicks.find((c) => /create|add|new/i.test(c)) || null;
   const updateClick = clicks.find((c) => /update|edit|save|open/i.test(c)) || null;
@@ -697,7 +702,9 @@ function extractUiFacts(codeContext) {
   const formComp = filePaths.find((p) => /details|form|edit|create|dialog/i.test(p)) || null;
   const nameField = formControls.includes('name') || /formControlName\s*=\s*"name"/.test(text);
   const hasMatTable = /mat-table|dataSource/i.test(text);
-  const fieldRequiredKey = labels.find((l) => /fieldRequired|required/i.test(l)) || (/common\.fieldRequired/.test(text) ? 'common.fieldRequired' : null);
+  const fieldRequiredKey = labels.find((l) => /fieldRequired|required/i.test(l))
+    || targetAdapter.i18nActionNamespaces.map((ns) => `${ns}.fieldRequired`).find((k) => text.includes(k))
+    || null;
   const nameLabel = labels.find((l) => /\.name$/i.test(l)) || (nameField ? 'name' : null);
 
   return {
@@ -815,7 +822,7 @@ export function buildUiPlanFromCode(codeContext, title, matchedFeature, intent =
     if ((notes.has('permission') || createPerm) && createPerm) {
       steps.push(`Confirm you can create only when allowed (permission: ${createPerm}).`);
     }
-    if (f.createClick || f.labels.some((l) => /common\.add|add|create/i.test(l))) {
+    if (f.createClick || f.labels.some((l) => /add|create/i.test(l) || I18N_ACTION_KEY_RE.test(l))) {
       steps.push('Locate and click the button used to create a new item (Add / Create / New).');
     }
     if (f.formPage || f.formControls.length || testData.testDataEntries?.length) {
@@ -961,7 +968,7 @@ export function codeGroundedApiCases(codeContext, title) {
       title: `POST ${createPath} creates resource when payload is valid`,
       type: 'Functional', priority: 'P0',
       steps: [
-        createPerm ? `Authenticate with permission ${createPerm}` : 'Authenticate as allowed by controller IsGranted attributes',
+        createPerm ? `Authenticate with permission ${createPerm}` : 'Authenticate as allowed by controller security annotations',
         `POST ${createPath} with required fields: ${facts.requiredFields.join(', ') || '(see controller requiredFields)'}`,
         'Assert success response from create()',
       ],
@@ -979,7 +986,7 @@ export function codeGroundedApiCases(codeContext, title) {
       add({
         title: `POST ${createPath} rejects duplicate name`,
         type: 'Negative', priority: 'P1',
-        steps: ['Create once with a name', 'POST again with the same name for the same enterprise scope'],
+        steps: ['Create once with a name', 'POST again with the same name in the same scope'],
         expected: 'nameExists(...) in code blocks the duplicate.',
       });
     }

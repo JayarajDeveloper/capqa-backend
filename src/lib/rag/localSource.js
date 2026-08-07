@@ -1,6 +1,6 @@
 /**
  * Local filesystem live source for Compose.
- * When CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT are set, read CapBO trees from disk
+ * When CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT are set, read target trees from disk
  * instead of GitLab HTTP (same relative paths, same chunk shape).
  */
 

@@ -131,8 +131,8 @@ export function parseSpecCommentSteps(specSource = '') {
       steps.push({ title: m[1].trim(), line: j + 1, status: 'pending', durationMs: null, error: null });
     }
   }
-  if (!steps.length && /ensureCapboSession/.test(specSource)) {
-    steps.push({ title: 'Establish authenticated CapBO session', line: 1, status: 'pending', durationMs: null, error: null });
+  if (!steps.length && /ensure(?:Target)?Session/.test(specSource)) {
+    steps.push({ title: 'Establish authenticated target session', line: 1, status: 'pending', durationMs: null, error: null });
   }
   return steps;
 }

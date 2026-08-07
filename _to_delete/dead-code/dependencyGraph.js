@@ -12,6 +12,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getLocalRoots } from './localSource.js';
+import { targetAdapter } from '../../adapters/index.js';
 
 /**
  * Scan all Entity PHP files and extract relationship dependencies.
@@ -98,7 +99,7 @@ export function resolveDependencyChain(graph, targetEntity, { maxDepth = 3, useR
 
   function isSeedEntity(name) {
     if (!graph.has(name)) return false;
-    if (name.endsWith('Translation')) return true;
+    if (name.endsWith(targetAdapter.i18nEntitySuffix)) return true;
     // Entities without UI pages are seed/system data (Country, City, Currency, etc.)
     if (uiSet.size > 0 && !uiSet.has(name)) return true;
     return false;

@@ -9,21 +9,24 @@ import { spawn } from 'node:child_process';
 import { buildRunnablePlaywrightSpec, buildRunnableApiSpec } from './codegen.js';
 import { buildProfessionalRunLog, createLiveStepTracker } from './runLogFormatter.js';
 import { env } from '../../env.js';
+import { targetAdapter } from '../../adapters/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const GENERATED_E2E_DIR = path.resolve(__dirname, '../../../generated-e2e');
 export const PLAYWRIGHT_CONFIG = path.join(GENERATED_E2E_DIR, 'playwright.config.mjs');
 const BACKEND_ROOT = path.resolve(__dirname, '../../..');
 
+const AUTH_STATE_MODULE = targetAdapter.specRuntime.authState;
+
 const DEFAULT_PLAYWRIGHT_CONFIG = `/**
- * Playwright config for Cap QA generated CapBO E2E specs.
+ * Playwright config for Cap QA generated target E2E specs.
  * Run: npx playwright test --config generated-e2e/playwright.config.mjs --headed
  */
 import { config as loadEnv } from 'dotenv';
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authStateForTarget } from './auth-state.mjs';
+import { authStateForTarget } from '${AUTH_STATE_MODULE}';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.resolve(__dirname, '../.env') });
@@ -101,7 +104,7 @@ export function resolveStableSpecSlug(meta = {}) {
   if (!feature) return null;
   const raw = slugify(feature);
   // Normalize common plurals → singular for URL matching, but keep
-  // genuine plurals (e.g. "partners" is the CapBO route).
+  // genuine plurals (e.g. "partners" is the target route).
   return raw;
 }
 

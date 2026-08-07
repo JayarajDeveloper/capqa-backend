@@ -1,5 +1,5 @@
 /**
- * Business Rule Extractor — scans live CapBO backend code (Entities, Services, Security)
+ * Business Rule Extractor — scans live target backend code (Entities, Services, Security)
  * and builds a structured catalog of business rules for the LLM to generate
  * comprehensive test cases (happy path + negative + boundary + permission).
  *

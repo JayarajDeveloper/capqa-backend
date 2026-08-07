@@ -57,15 +57,28 @@ assert.ok(auto.steps.some((s) => s.method === 'POST' && s.path === '/api/currenc
 assert.equal(auto.steps.find((s) => s.id === 'api-create').body.code, 'TOP');
 
 const src = buildRunnableApiSpec(auto, { matchedFeature: 'Currency', action: 'create' });
-assert.match(src, /capboApiRequest/);
+assert.match(src, /targetApiRequest/);
 assert.match(src, /POST \/api\/currencies/);
-assert.match(src, /ensureCapboAccessToken/);
+assert.match(src, /ensureAccessToken/);
 
-// Eco tax: no Route chunks — feature fallback must still unlock Code · Repo
-assert.equal(resolveApiCollectionPath('Eco Tax', ''), '/api/ecotaxes');
+const ecoRouteCtx = `
+#[Route('/api/ecotaxes', name: 'api_ecotax_', priority: 10)]
+class EcotaxController {
+  #[Route('', name: 'list', methods: ['GET'])]
+  public function list() {}
+  #[Route('', name: 'create', methods: ['POST'])]
+  public function create() {}
+}
+'/api/shared/enum-values/ecotax_category'
+'/api/shared/enum-values/ecotax_calculation_mode'
+'/api/vats/dropdowns'
+`;
+
+// Eco tax: indexed Route unlocks collection path (no module table)
+assert.equal(resolveApiCollectionPath('Eco Tax', ecoRouteCtx), '/api/ecotaxes');
 const eco = buildApiAutomation({
   cases: [],
-  codeContext: '',
+  codeContext: ecoRouteCtx,
   matchedFeature: 'Eco Tax',
   intent: {
     action: 'create',
@@ -79,7 +92,7 @@ assert.ok(eco.steps.length >= 1, 'eco tax API steps without backend context');
 assert.ok(eco.steps.some((s) => s.method === 'POST' && s.path === '/api/ecotaxes'), 'POST /api/ecotaxes');
 assert.equal(eco.steps.find((s) => s.id === 'api-create').body.code, 'ECO-QA-0167');
 assert.equal(eco.steps.find((s) => s.id === 'api-create').body.category, 'RCP');
-assert.equal(eco.steps.find((s) => s.id === 'api-create').body.calculation_mode, 'FIXED_AMOUNT');
+assert.equal(eco.steps.find((s) => s.id === 'api-create').body.calculation_mode, '__first__');
 
 // Truncated OpenAPI: GET /api/ecotaxes present, POST missing → still emit create
 const partialGetOnly = `
@@ -105,7 +118,7 @@ assert.equal(ecoPartial.steps.find((s) => s.id === 'api-create').body.code, 'ECO
 // Ask code/name must appear even when LLM testData.fields is empty (Backend-only)
 const ecoAsk = buildApiAutomation({
   cases: [],
-  codeContext: '',
+  codeContext: ecoRouteCtx,
   matchedFeature: 'Ecotax',
   intent: {
     action: 'create',
@@ -122,7 +135,7 @@ assert.ok(ecoBody.display_label, 'display_label required');
 // “first option” → resolveFirst GETs (same idea as UI select first)
 const ecoFirst = buildApiAutomation({
   cases: [],
-  codeContext: '',
+  codeContext: ecoRouteCtx,
   matchedFeature: 'Ecotax',
   intent: {
     action: 'create',

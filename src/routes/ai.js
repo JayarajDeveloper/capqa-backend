@@ -24,6 +24,7 @@ import { persistTestRun, publicRun } from '../lib/reports/persistRun.js';
 import { extractAllRules, formatAllRules } from '../lib/rag/allRules.js';
 import { readSourceDirect, buildDirectContext } from '../lib/rag/directSource.js';
 import { nlpParseIntent } from '../lib/rag/nlpIntent.js';
+import { getCapabilityIndex } from '../lib/index/capabilityIndex.js';
 
 // Mounted at /api. Full paths include /projects/:projectId.
 export const aiRouter = Router();
@@ -148,7 +149,7 @@ function normalizeAppUrl(raw) {
   const s = String(raw || '').trim();
   if (!s) return '';
   try {
-    // Keep ?tenant=bota intact — CapBO SSO depends on it
+    // Keep ?tenant= query params intact — target SSO often depends on them
     return new URL(s.includes('://') ? s : `https://${s}`).toString();
   } catch {
     return s;
@@ -253,7 +254,7 @@ function normalizeHostPort(host, port) {
   return { host: h || null, port: p };
 }
 
-// GET CapBO Postgres target (never returns password).
+// GET target Postgres target (never returns password).
 aiRouter.get('/projects/:projectId/db-target', async (req, res) => {
   try {
     if (!prisma.dbTarget) {
@@ -268,7 +269,7 @@ aiRouter.get('/projects/:projectId/db-target', async (req, res) => {
   }
 });
 
-// PUT CapBO Postgres target. Accepts discrete fields and/or connection `url`.
+// PUT target Postgres target. Accepts discrete fields and/or connection `url`.
 aiRouter.put('/projects/:projectId/db-target', async (req, res) => {
   try {
     if (!prisma.dbTarget) {
@@ -316,7 +317,7 @@ aiRouter.put('/projects/:projectId/db-target', async (req, res) => {
   }
 });
 
-// Test CapBO Postgres connectivity.
+// Test target Postgres connectivity.
 aiRouter.post('/projects/:projectId/db-target/test', async (req, res) => {
   try {
     if (!prisma.dbTarget) {
@@ -465,8 +466,21 @@ aiRouter.post('/projects/:projectId/compose', async (req, res) => {
   });
 
   // Frontend expects { ui, api, db } — not the flat uiAutomation object
+  // Capability Index — per-module routes/fields derived from the target's own
+  // source, replacing the per-module tables that used to live in codegen.js.
+  let capabilityIndex = null;
+  try {
+    capabilityIndex = await getCapabilityIndex({
+      apiRoot: env.CAPQA_LOCAL_API_ROOT,
+      uiRoot: env.CAPQA_LOCAL_UI_ROOT,
+    });
+  } catch (e) {
+    console.warn('[compose] capability index unavailable:', e.message);
+  }
+
   const automation = buildAutomationBundle({
     layers: ['ui', 'backend'],
+    capabilityIndex,
     uiPlan: result.uiPlan,
     uiContext,
     apiContext,

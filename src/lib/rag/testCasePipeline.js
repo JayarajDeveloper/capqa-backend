@@ -1,5 +1,5 @@
 /**
- * Unified test-case preparation for ALL CapBO modules (partners, VAT, currency, eco-tax, retail-chain, …).
+ * Unified test-case preparation for ALL target modules (partners, VAT, currency, eco-tax, retail-chain, …).
  * One code path: indexed UI → schema → description parse → defaults → manual steps + automation fields.
  */
 

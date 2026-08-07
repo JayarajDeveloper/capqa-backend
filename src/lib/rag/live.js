@@ -35,12 +35,12 @@ const PING_TIMEOUT_MS = Number(process.env.GITLAB_PING_TIMEOUT_MS || 8000);
 const PING_RETRIES = Number(process.env.GITLAB_PING_RETRIES || 3);
 
 /**
- * Compose live hydrate: prefer local CapBO trees when CAPQA_LOCAL_* roots are set,
+ * Compose live hydrate: prefer local target trees when CAPQA_LOCAL_* roots are set,
  * otherwise GitLab HTTP (existing behaviour).
  */
 export async function hydrateChunksForCompose(args) {
   if (isLocalSourceConfigured()) {
-    console.log('[live] using local CapBO roots (CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT)');
+    console.log('[live] using local target roots (CAPQA_LOCAL_UI_ROOT / CAPQA_LOCAL_API_ROOT)');
     return hydrateChunksFromLocal(args);
   }
   return hydrateChunksFromGitLab(args);

@@ -3,6 +3,7 @@
  */
 
 import { parseControlBindings, parseWrapperDropdownFields } from './componentRegistry.js';
+import { targetAdapter } from '../../adapters/index.js';
 
 function splitCodeChunks(codeContext) {
   const text = String(codeContext || '');
@@ -37,7 +38,7 @@ export function featureSlugFromName(featureName) {
 }
 
 /**
- * Resolve the correct CapBO route for an entity.
+ * Resolve the correct target route for an entity.
  *
  * Strategy:
  *  1. If the entity has its own UI folder → /{folder-slug}
@@ -56,7 +57,7 @@ export function resolveCorrectRoute(featureName, { dependencyGraph = null } = {}
     if (node && node.dependsOn && node.dependsOn.length > 0) {
       // For child entities: route through the first non-translation parent
       for (const parent of node.dependsOn) {
-        if (parent.endsWith('Translation')) continue;
+        if (parent.endsWith(targetAdapter.i18nEntitySuffix)) continue;
         const parentSlug = featureSlugFromName(parent);
         if (parentSlug && parentSlug !== slug) return `/${parentSlug}`;
       }
@@ -108,7 +109,7 @@ export function resolvedFeatureFolder(featureName = '', seedPaths = []) {
   );
 }
 
-/** Drop live/index chunks from other CapBO modules once a feature is grounded. */
+/** Drop live/index chunks from other target modules once a feature is grounded. */
 export function filterChunksToFeatureFolder(chunks = [], featureName = '', seedPaths = []) {
   const folder = resolvedFeatureFolder(featureName, [
     ...seedPaths,
@@ -268,7 +269,7 @@ export function normalizeRowNeedle(raw) {
   if (!s) return '';
   s = s.replace(/^(?:the|a|an)\s+/i, '');
   s = s.replace(/\s+row\s*$/i, '');
-  s = s.replace(/\s+(?:retail|partner)\s+chain\s*$/i, '');
+  s = s.replace(/\s+(?:\w+\s+)?chain\s*$/i, '');
   s = s.replace(/\s+chain\s*$/i, '');
   return s.trim();
 }
@@ -490,7 +491,7 @@ export function assessComposeFeasibility({
   // Action-specific hints only — avoid showing delete/view rules on create/list flows
   if (act === 'delete') {
     if (caps.deletePermission) {
-      advice.push(`Delete in CapBO requires permission ${caps.deletePermission} (from indexed template).`);
+      advice.push(`Delete requires permission ${caps.deletePermission} (from the indexed target template).`);
     }
     if (caps.detailDeleteEditOnly) {
       advice.push('Delete button is only visible in edit mode, not on view or list.');

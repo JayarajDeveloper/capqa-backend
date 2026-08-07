@@ -31,7 +31,7 @@ function inferFailurePhaseFromLog(log = '', runSteps = []) {
   if (/verifyinlist|appears in list/i.test(low)) return 'verify';
   if (/-save['"]\)|tobeenabled.*save/i.test(low)) return 'save';
   if (/selectmatdropdown|fillangularfield/i.test(low)) return 'form';
-  if (/spanavigate|ensurecapbosession/i.test(low)) return 'navigate';
+  if (/spanavigate|ensure(?:target)?session/i.test(low)) return 'navigate';
   return 'form';
 }
 

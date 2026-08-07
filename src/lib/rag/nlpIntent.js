@@ -25,7 +25,7 @@ Return ONLY valid JSON — no explanation, no markdown:
 }
 
 GUIDELINES:
-- Correct obvious typos in entity names (e.g. "parnter" → "Partner")
+- Correct obvious typos in entity names against the entities present in the target
 - Detect cross-module asks where one entity links to another
 - Extract specific field values when the user provides them (names, codes, types)
 - Set confidence lower when the ask is ambiguous`;

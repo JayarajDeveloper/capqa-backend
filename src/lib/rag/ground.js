@@ -32,6 +32,16 @@ import {
   buildFieldCatalog,
 } from './askAnalyzer.js';
 
+import { targetAdapter, alternation, pathScoreRules } from '../../adapters/index.js';
+
+// Stack conventions come from the selected target adapter, never from literals here.
+const FEATURE_CONTAINER_RE = new RegExp(`(?:${alternation(targetAdapter.featureContainerDirs)})\\/([^/]+)`, 'i');
+const NON_FEATURE_FOLDER_RE = new RegExp(`^(${alternation(targetAdapter.nonFeatureFolders)})$`, 'i');
+const NON_FEATURE_NAME_RE = new RegExp(`^(${alternation(targetAdapter.nonFeatureNames)})$`, 'i');
+const NON_SCREEN_SEGMENT_RE = new RegExp(`\\/(${alternation(targetAdapter.nonScreenSegments)})s?\\/`, 'i');
+const COMPONENT_ROLE_SUFFIX_RE = new RegExp(`[-_](${alternation(targetAdapter.componentRoleSuffixes)})$`, 'i');
+const PATH_SCORE_RULES = pathScoreRules();
+
 export { mapFieldToFormControl, buildFieldCatalog, pickIdentityFieldFromSchema };
 export { prioritizeFeatureChunks, normalizeRowNeedle } from './codeSignals.js';
 
@@ -139,10 +149,11 @@ export function parseIntent(title, description) {
 
   const { base: subjectTerms, all: expanded } = expandAskTerms(combinedAsk);
   const summary = combinedAsk.slice(0, 120) || 'Untitled ask';
+  const action = detectActionFromAsk(combinedAsk);
 
   return {
-    action: 'exercise', // NLP overrides this
-    actionScores: { exercise: 1 },
+    action,
+    actionScores: { [action]: 1 },
     notes: [],
     subjectTerms,
     expandedTerms: expanded,
@@ -152,6 +163,16 @@ export function parseIntent(title, description) {
     combinedAsk,
     searchQuery: combinedAsk.trim() || subjectTerms.join(' '),
   };
+}
+
+/** Generic CRUD verb detection — grammar only, no module names. NLP may override in compose. */
+function detectActionFromAsk(text) {
+  const t = String(text || '').toLowerCase();
+  if (/\b(delete|remove|archive)\b/.test(t)) return 'delete';
+  if (/\b(update|edit|modify|rename)\b/.test(t)) return 'update';
+  if (/\b(create|add|new|insert)\b/.test(t)) return 'create';
+  if (/\b(list|search|view|read|get)\b/.test(t)) return 'list';
+  return 'exercise';
 }
 
 /** Pull likely test-data tail from a phrase (strip leading feature terms from ask). */
@@ -651,8 +672,8 @@ export function featureFromPath(path) {
   const p = String(path || '');
   // Spec / unit-test files are not product features (e.g. vat.service.spec.ts → "Vat.Service.Spec")
   if (/\.(spec|test)\.(ts|tsx|js|jsx)$/i.test(p) || /\/(__tests__|testing)\//i.test(p)) {
-    const m = p.match(/(?:pages|Features|components|modules|views)\/([^/]+)/i);
-    if (m?.[1] && !/^(shared|common|core|layout|ui|utils|helpers|services)$/i.test(m[1])) {
+    const m = p.match(FEATURE_CONTAINER_RE);
+    if (m?.[1] && !NON_FEATURE_FOLDER_RE.test(m[1])) {
       return m[1]
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/[-_]+/g, ' ')
@@ -662,16 +683,16 @@ export function featureFromPath(path) {
     return '';
   }
   // Shared enums/DTOs/serializers are not screens (e.g. CurrencyCode.php → must NOT become "Currency Code")
-  if (/\/(Shared|Common|Core|Enum|Enums|Dto|DTOs|OpenApi|Serializer|Normalizer|Denormalizer|Chunker|Migration)s?\//i.test(p)) {
+  if (NON_SCREEN_SEGMENT_RE.test(p)) {
     return '';
   }
   const base = p.split('/').pop() || p;
   let name = base
     .replace(/\.(component|page|dialog|service|controller|entity|module)\.[a-z]+$/i, '')
     .replace(/\.(html|ts|tsx|js|jsx|vue|php)$/i, '')
-    .replace(/[-_](list|form|detail|edit|create|index|show|table|view)$/i, '');
-  const m = p.match(/(?:pages|Features|components|modules|views)\/([^/]+)/i);
-  if (m?.[1] && !/^(shared|common|core|layout|ui|utils|helpers|services)$/i.test(m[1])) {
+    .replace(COMPONENT_ROLE_SUFFIX_RE, '');
+  const m = p.match(FEATURE_CONTAINER_RE);
+  if (m?.[1] && !NON_FEATURE_FOLDER_RE.test(m[1])) {
     name = m[1];
   }
   return name
@@ -766,9 +787,7 @@ export function scoreFeatureAgainstAsk(featureName, samplePath, termsAll, askQue
   }
 
   // Prefer real screens (pages/) over Shared enums
-  if (/\/pages\//i.test(samplePath)) score += 6;
-  if (/\/Features\/[^/]+\/(Controller|Entity)\//i.test(samplePath)) score += 3;
-  if (/\/(Shared|Enum)\//i.test(samplePath)) score -= 20;
+  for (const rule of PATH_SCORE_RULES) if (rule.re.test(samplePath)) score += rule.delta;
 
   // Compound ask: "retail" + "chain" → retail_chain path
   if (domainTerms.length >= 2) {
@@ -779,16 +798,20 @@ export function scoreFeatureAgainstAsk(featureName, samplePath, termsAll, askQue
     }
   }
 
-  // Prefer eco-tax over article-eco-tax when ask is "eco taxes" (no "article")
-  if (/article/i.test(pathNorm) && !/article/i.test(askNorm)) score -= 10;
-  if (/article/i.test(nameNorm) && !/article/i.test(askNorm)) score -= 8;
-  // Prefer primary feature folder over compound siblings (article-eco-tax vs articles)
-  if (
-    /article[-_]?ecotax|article_ecotax/i.test(pathNorm)
-    && /article/i.test(askNorm)
-    && !/ecotax|eco-tax|eco\s*tax/i.test(askNorm)
-  ) {
-    score -= 12;
+  // Penalize compound/junction modules when the ask only mentions part of the folder name
+  const pathSegments = `${pathNorm}-${nameNorm}`.split(/[-_/]/).filter((s) => s.length >= 3);
+  if (pathSegments.length >= 2) {
+    const askCompact = normalizeKey(askNorm);
+    const domainCompact = normalizeKey(domainTerms.join(''));
+    const mentioned = pathSegments.filter((s) => askCompact.includes(s)
+      || domainCompact.includes(s)
+      || domainTerms.some((t) => {
+        const tn = normalizeKey(t);
+        return tn.includes(s) || s.includes(tn);
+      }));
+    if (mentioned.length > 0 && mentioned.length < pathSegments.length) {
+      score -= 6 * (pathSegments.length - mentioned.length);
+    }
   }
   // Generic: boost pages/{folder} when ask tokens match that folder stem
   const pageFolder = (samplePath.match(/\/pages\/([^/]+)\//i) || [])[1] || '';
@@ -822,7 +845,7 @@ export function rankFeaturesFromChunks(query, chunks) {
   for (const c of chunks || []) {
     const name = featureFromPath(c.path);
     if (!name || name === 'Matched screen') continue;
-    if (/^(Shared|Common|Core|Layout|Auth|Login)$/i.test(name)) continue;
+    if (NON_FEATURE_NAME_RE.test(name)) continue;
     if (/\.(spec|test)\./i.test(String(c.path || '')) || /\bService\.Spec\b/i.test(name)) continue;
     const key = normalizeKey(name);
     let row = byFeature.get(key);
@@ -1005,7 +1028,7 @@ export async function suggestIndexedFeatures(projectId, layers, limit = 12, quer
     if (layers?.length && !layers.includes(layerOf(path))) continue;
     const feat = featureFromPath(path);
     if (!feat || feat === 'Matched screen') continue;
-    if (/^(Shared|Common|Core|Layout|Auth|Login)$/i.test(feat)) continue;
+    if (NON_FEATURE_NAME_RE.test(feat)) continue;
     counts.set(feat, (counts.get(feat) || 0) + 1);
     if (!pathsByFeat.has(feat)) pathsByFeat.set(feat, []);
     const list = pathsByFeat.get(feat);

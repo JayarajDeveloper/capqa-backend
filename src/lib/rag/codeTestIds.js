@@ -1,5 +1,5 @@
 /**
- * Strict rule: Playwright specs use only data-testid / testId parsed from CapBO code.
+ * Strict rule: Playwright specs use only data-testid / testId parsed from target code.
  * No invented stems like `${module}-create` for fields.
  */
 
@@ -41,13 +41,13 @@ export function auditCodeTestIds({
     if (!createTestId) {
       missing.push({
         kind: 'create',
-        message: 'No list Add/Create data-testid/testId in live UI (e.g. partner-create)',
+        message: 'No list Add/Create data-testid/testId found in the target UI source',
       });
     }
     if (!saveTestId) {
       missing.push({
         kind: 'save',
-        message: 'No form Save/Submit data-testid/testId in live UI (e.g. partner-save)',
+        message: 'No form Save/Submit data-testid/testId found in the target UI source',
       });
     }
   }
@@ -57,7 +57,7 @@ export function auditCodeTestIds({
     if (!deleteTestId) {
       missing.push({
         kind: 'delete',
-        message: 'No delete data-testid/testId in live UI (e.g. eco-tax-delete on edit form)',
+        message: 'No delete data-testid/testId found in the target UI source',
       });
     }
   }
@@ -72,7 +72,7 @@ export function auditCodeTestIds({
       missing.push({
         kind: 'field',
         key: field.key,
-        message: `Required field "${field.key}" has no data-testid/testId in CapBO code`,
+        message: `Required field "${field.key}" has no data-testid/testId in the target source`,
       });
     }
   }

@@ -1,5 +1,5 @@
 /**
- * CapBO target-database helpers for Database · SQL runs (read-only).
+ * target target-database helpers for Database · SQL runs (read-only).
  */
 import pg from 'pg';
 import { encrypt, decrypt } from '../crypto.js';
@@ -60,7 +60,7 @@ export async function loadDbTarget(projectId, prisma) {
 export async function withDbClient(config, fn) {
   if (!config) {
     throw new Error(
-      'Database not configured — add CapBO Postgres credentials in Settings (or TARGET_DATABASE_URL in .env).',
+      'Database not configured — add the target Postgres credentials in Settings (or TARGET_DATABASE_URL in .env).',
     );
   }
   const client = new Client(config);
@@ -103,7 +103,7 @@ function columnNamesFromRows(rows) {
 }
 
 /**
- * Run Database automation steps against CapBO Postgres.
+ * Run Database automation steps against target Postgres.
  * Step shape: { action: 'sqlAssert', sql, params?, expectMinRows?, expectIncludes?, expectColumns? }
  */
 export async function runDbAutomation(automation, config) {

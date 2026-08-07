@@ -4,6 +4,7 @@
 import { prisma } from '../../db.js';
 
 import { embedOne } from './embed.js';
+import { targetAdapter, extraNoisePaths } from '../../adapters/index.js';
 
 const STOP = new Set([
   'a', 'an', 'the', 'and', 'or', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with',
@@ -15,7 +16,13 @@ const STOP = new Set([
 ]);
 
 /** Paths that rarely hold product business logic for QA. */
-const NOISE_PATH = /(?:^|\/)(devops|keycloak|keycloack|migrations_bk|vendor|node_modules|docs\/|assets\/i18n|\.github|docker|helm|terraform|CodebaseKnowledge|JiraTestRunner|Shared\/Enum)(?:\/|$)/i;
+const NOISE_PATH = new RegExp(
+  `(?:^|\\/)(${[...targetAdapter.noisePathSegments, ...extraNoisePaths()]
+    .map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:\\/|$)`, 'i');
+
+const DEPRIORITISE_RE = extraNoisePaths().length
+  ? new RegExp(extraNoisePaths().map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'i')
+  : null;
 
 /** Prefer real application code. */
 const APP_PATH = /(?:^|\/)(src\/Features|src\/app|Controller|Service|Repository|Entity|Dto|OpenApi|pages\/|components\/)/i;
@@ -92,7 +99,7 @@ function pathBoost(path, terms) {
   if (/\/pages\/.+\/.+\.component\.(html|ts)$/i.test(path) && !/\.spec\./i.test(path)) boost += 3.5;
   if (/\.md$/i.test(path)) boost -= 0.8;
   if (/migrations?\//i.test(path)) boost -= 0.6;
-  if (/CodebaseKnowledge|JiraTestRunner|EanCode/i.test(path)) boost -= 3;
+    if (DEPRIORITISE_RE && DEPRIORITISE_RE.test(path)) boost -= 3;
 
   for (const t of terms) {
     if (!t) continue;

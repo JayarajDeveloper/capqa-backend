@@ -261,48 +261,122 @@ export async function readSourceDirect(entityNames, { uiRoot, apiRoot } = {}) {
  * Build code context from direct reads.
  * UI files are sorted: main entity form FIRST, child/tab components LAST.
  */
+/**
+ * Context budgets, in characters. All overridable via env.
+ *
+ * The previous values (8000 / 12000 / 24000) cut real target templates so hard
+ * that extractModuleCapabilities() reported "no edit, no view, no delete" for
+ * 5 of 6 modules — the row-action buttons sit at the bottom of a list template
+ * and were always the part that got dropped. Measured across
+ * currency/vat/partner/eco-tax/retail-chain/article:
+ *
+ *    perFile/layer/code      capabilities detected   fields found   prompt size
+ *     8000/ 12000/ 24000            1 of 6                15         ~6.3k tok
+ *    12000/ 30000/ 40000            5 of 6                32         ~9.5k tok
+ *    16000/ 50000/ 60000            5 of 6                41        ~12.0k tok   <- default
+ *    40000/150000/200000            5 of 6                68        ~19.9k tok
+ *
+ * Raise these if a module's form is unusually large; the `truncated` array on
+ * buildDirectContext()'s result reports when a file was cut.
+ */
+const PER_FILE_CHARS = Number(process.env.CAPQA_PER_FILE_CHARS || 16000);
+const CODE_CONTEXT_CHARS = Number(process.env.CAPQA_CONTEXT_CHARS || 60000);
+const LAYER_CONTEXT_CHARS = Number(process.env.CAPQA_LAYER_CONTEXT_CHARS || 50000);
+
+function fenceLang(file) {
+  if (/\.php$/i.test(file)) return 'php';
+  if (/\.html$/i.test(file)) return 'html';
+  if (/\.tsx?$/i.test(file)) return 'ts';
+  return '';
+}
+
+/**
+ * Render one file as a chunk in the canonical format that splitCodeChunks()
+ * (codeSignals.js, formSchema.js) parses:
+ *
+ *   [n] LABEL:: <relative/path>:<from>-<to>
+ *   ```lang
+ *   …source…
+ *   ```
+ *
+ * The FULL relative path is carried so downstream list-vs-detail predicates
+ * (isListChunkPath / isDetailChunkPath / rankFeaturePath) can actually fire.
+ * Truncation is announced inline AND pushed onto `truncated`.
+ */
+function renderChunk(seq, label, item, maxChars, truncated) {
+  // A literal fence inside source would end the block early.
+  const safe = String(item.content || '').replace(/```/g, '~~~');
+  const clipped = safe.length > maxChars;
+  const body = clipped
+    ? `${safe.slice(0, maxChars)}\n/* CAPQA TRUNCATED: ${safe.length - maxChars} of ${safe.length} chars omitted */`
+    : safe;
+  if (clipped) truncated.push({ file: item.file, keptChars: maxChars, totalChars: safe.length });
+  return `[${seq}] ${label}:: ${item.file}:1-${item.lines}\n\`\`\`${fenceLang(item.file)}\n${body}\n\`\`\``;
+}
+
+/**
+ * Build one context layer.
+ *
+ * The budget is shared FAIRLY across files rather than first-come-first-served.
+ * Sequential filling used to consume the whole budget on the first one or two
+ * files and drop the rest — including the list template that capability
+ * detection depends on. Every file now gets a slice, so every file is visible.
+ */
+function buildLayer(items, budget, truncated, seqStart = 0) {
+  if (!items.length) return { text: '', next: seqStart };
+  const perFile = Math.max(500, Math.min(PER_FILE_CHARS, Math.floor(budget / items.length)));
+  const parts = items.map((it, i) => renderChunk(seqStart + i + 1, it.label, it, perFile, truncated));
+  return { text: parts.join('\n'), next: seqStart + items.length };
+}
+
 export function buildDirectContext(direct, primaryEntity) {
-  const chunks = [];
+  const truncated = [];
 
-  for (const e of direct.entities) {
-    chunks.push(`\n// ENTITY: ${e.entity} (${e.file.split('/').slice(-2).join('/')}, ${e.lines} lines)\n${e.content.slice(0, 8000)}`);
-  }
-
-  for (const s of direct.services) {
-    chunks.push(`\n// SERVICE: ${s.entity} (${s.file.split('/').slice(-2).join('/')}, ${s.lines} lines)\n${s.content.slice(0, 8000)}`);
-  }
-
-  // Sort UI: entity's OWN form first, other folders later
+  // Sort UI: entity's OWN form first, child/tab components later.
   const primaryKey = (primaryEntity || '').toLowerCase();
   const primarySlug = toSlug(primaryEntity);
 
-  const sorted = [...direct.ui].sort((a, b) => {
-    const aPath = a.file.toLowerCase();
-    const bPath = b.file.toLowerCase();
-    const aHasPrimary = primarySlug ? aPath.includes(primarySlug) : aPath.includes(primaryKey);
-    const bHasPrimary = primarySlug ? bPath.includes(primarySlug) : bPath.includes(primaryKey);
-
+  const sortedUi = [...direct.ui].sort((a, b) => {
+    const aHasPrimary = primarySlug ? a.file.toLowerCase().includes(primarySlug) : a.file.toLowerCase().includes(primaryKey);
+    const bHasPrimary = primarySlug ? b.file.toLowerCase().includes(primarySlug) : b.file.toLowerCase().includes(primaryKey);
     if (aHasPrimary && !bHasPrimary) return -1;
     if (!aHasPrimary && bHasPrimary) return 1;
     return b.lines - a.lines;
   });
 
-  for (let i = 0; i < sorted.length; i++) {
-    const u = sorted[i];
-    const label = i === 0 ? 'MAIN FORM (use this for test steps)' : 'CHILD / TAB';
-    chunks.push(`\n// UI ${label}: ${u.entity} (${u.file.split('/').slice(-2).join('/')}, ${u.lines} lines)\n${u.content.slice(0, 8000)}`);
-  }
+  const entityItems = direct.entities.map((e) => ({ ...e, label: 'ENTITY' }));
+  const serviceItems = direct.services.map((sv) => ({ ...sv, label: 'SERVICE' }));
+  const uiItems = sortedUi.map((u, i) => ({
+    ...u,
+    label: i === 0 ? 'UI MAIN FORM (use this for test steps)' : 'UI CHILD / TAB',
+  }));
+
+  const all = [...entityItems, ...serviceItems, ...uiItems];
 
   return {
-    codeContext: chunks.join('\n').slice(0, 24000),
-    uiContext: direct.ui.map(u => u.content).join('\n').slice(0, 12000),
-    apiContext: direct.entities.map(e => e.content).join('\n').slice(0, 12000),
+    codeContext: buildLayer(all, CODE_CONTEXT_CHARS, truncated).text,
+    uiContext: buildLayer(uiItems, LAYER_CONTEXT_CHARS, truncated).text,
+    apiContext: buildLayer(entityItems, LAYER_CONTEXT_CHARS, truncated).text,
     sources: [
       ...direct.entities.map(e => e.file),
       ...direct.services.map(s => s.file),
       ...direct.ui.map(u => u.file),
     ],
+    /**
+     * Non-empty when source was cut. Surface this instead of letting the prompt
+     * and the UI both claim the files were read in full.
+     */
+    truncated: dedupeTruncation(truncated),
   };
+}
+
+function dedupeTruncation(list) {
+  const worst = new Map();
+  for (const t of list) {
+    const prev = worst.get(t.file);
+    if (!prev || t.keptChars < prev.keptChars) worst.set(t.file, t);
+  }
+  return [...worst.values()];
 }
 
 /** Get list of all known entity names (lowercase keys). */
@@ -311,7 +385,7 @@ export async function listEntityNames() {
   return [...map.keys()];
 }
 
-/** Invalidate cache — call after a CapBO deploy. */
+/** Invalidate cache — call after a target deploy. */
 export function invalidateCache() {
   _cache = null;
   _cacheTime = 0;

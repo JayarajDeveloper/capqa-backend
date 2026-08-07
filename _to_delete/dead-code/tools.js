@@ -43,7 +43,7 @@ export const AGENT_TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          entity: { type: 'string', description: 'Entity/feature name (e.g. Partner, Currency, Article)' },
+          entity: { type: 'string', description: 'Entity/feature name, as discovered in the target source' },
         },
         required: ['entity'],
       },

@@ -358,7 +358,7 @@ RULES:
       type: 'function',
       function: {
         name: 'browser_explore',
-        description: 'Explore the live CapBO app to verify selectors. Navigate to routes, click elements, take snapshots to discover real testIds and DOM structure.',
+        description: 'Explore the live target app to verify selectors. Navigate to routes, click elements, take snapshots to discover real testIds and DOM structure.',
         parameters: {
           type: 'object',
           properties: {
@@ -368,7 +368,7 @@ RULES:
                 type: 'object',
                 properties: {
                   action: { type: 'string', enum: ['navigate', 'click', 'type', 'snapshot', 'testids'] },
-                  url: { type: 'string', description: 'Route to navigate to, e.g. /partners' },
+                  url: { type: 'string', description: 'Route to navigate to, taken from the target source' },
                   testId: { type: 'string', description: 'data-testid to click or type into' },
                   text: { type: 'string', description: 'Text to type into a field' },
                 },

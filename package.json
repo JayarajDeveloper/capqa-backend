@@ -13,7 +13,9 @@
     "generate": "prisma generate",
     "test:e2e": "playwright test --config generated-e2e/playwright.config.mjs",
     "test:e2e:headed": "playwright test --config generated-e2e/playwright.config.mjs --headed",
-    "test:e2e:auth": "E2E_AUTH_SETUP=1 playwright test auth.setup.spec.ts --config generated-e2e/playwright.config.mjs --headed"
+    "test:e2e:auth": "E2E_AUTH_SETUP=1 playwright test auth.setup.spec.ts --config generated-e2e/playwright.config.mjs --headed",
+    "check:hardcode": "node scripts/check-no-hardcode.mjs",
+    "check:hardcode:update": "node scripts/check-no-hardcode.mjs --update"
   },
   "keywords": [],
   "author": "",

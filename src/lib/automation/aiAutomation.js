@@ -190,7 +190,7 @@ function materializeRunnerStep(step, vocab, schema) {
   }
   if (action === 'expectVisible') {
     const desc = String(step.description || '');
-    const formScoped = /toggle|form|field|input|dropdown|save|submit|partner-form|details/i.test(desc);
+    const formScoped = /toggle|form|field|input|dropdown|save|submit|-form\b|details/i.test(desc);
     return {
       id: step.id || 'expect-visible',
       action: 'expectVisible',
@@ -227,7 +227,7 @@ export function buildUiAutomationFromAiPlan({
   const action = aiPlan.action || intent?.action || 'create';
   const feature = matchedFeature || uiPlan?.ask?.matchedFeature || 'feature';
   let route = aiPlan.route || extractRouteHints(codeContext, feature) || '/';
-  // CapBO create must start on list — deep-link /details makes save → history.back() leave the module
+  // target create must start on list — deep-link /details makes save → history.back() leave the module
   if (/^(create|exercise)$/i.test(action) && /\/details/i.test(route)) {
     route = route.replace(/\/details.*$/i, '') || route;
   }
